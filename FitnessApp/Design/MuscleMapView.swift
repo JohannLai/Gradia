@@ -60,8 +60,8 @@ struct MuscleMapView: View {
         defaultFillColor: Color.secondary.opacity(0.08),
         strokeColor: Color.secondary.opacity(0.24),
         strokeWidth: 0.65,
-        selectionColor: .orange,
-        selectionStrokeColor: .orange,
+        selectionColor: Color.primary.opacity(0.92),
+        selectionStrokeColor: .primary,
         selectionStrokeWidth: 2,
         headColor: Color.secondary.opacity(0.10),
         hairColor: Color.primary.opacity(0.72)

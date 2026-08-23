@@ -52,7 +52,7 @@ struct TodayView: View {
                 .font(.caption.weight(.bold).monospacedDigit())
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.12), in: Capsule())
+                .background(Color.primary.opacity(0.10), in: Capsule())
                 .foregroundStyle(.tint)
         }
     }
@@ -74,7 +74,7 @@ struct TodayView: View {
                     .font(.system(size: 34))
                     .foregroundStyle(.tint)
                     .frame(width: 62, height: 62)
-                    .background(Color.accentColor.opacity(0.12), in: Circle())
+                    .background(Color.primary.opacity(0.10), in: Circle())
             }
 
             Label(store.schedule.plannedDate.formatted(.dateTime.weekday(.wide).month().day().hour().minute()), systemImage: "calendar")
@@ -88,6 +88,7 @@ struct TodayView: View {
                 } label: {
                     Label("开始训练", systemImage: "play.fill")
                         .frame(maxWidth: .infinity)
+                        .foregroundStyle(AppTheme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
@@ -106,20 +107,20 @@ struct TodayView: View {
                 .font(.headline)
             GlassEffectContainer(spacing: 10) {
                 HStack(spacing: 10) {
-                    quickButton("晨重", icon: "scalemass.fill", color: .blue) { entry = .weight }
-                    quickButton("饮食", icon: "camera.fill", color: .orange) { entry = .meal }
-                    quickButton("腰围", icon: "ruler.fill", color: .purple) { entry = .waist }
+                    quickButton("晨重", icon: "scalemass.fill") { entry = .weight }
+                    quickButton("饮食", icon: "camera.fill") { entry = .meal }
+                    quickButton("腰围", icon: "ruler.fill") { entry = .waist }
                 }
             }
         }
     }
 
-    private func quickButton(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+    private func quickButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 9) {
                 Image(systemName: icon)
                     .font(.title3)
-                    .foregroundStyle(color)
+                    .foregroundStyle(.primary)
                 Text(title)
                     .font(.caption.weight(.semibold))
             }
@@ -134,12 +135,12 @@ struct TodayView: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "身体与恢复", subtitle: "Apple 健康 + 手工记录")
             HStack(spacing: 10) {
-                MetricPill(icon: "scalemass", value: weightText, label: "最新体重", tint: .blue)
-                MetricPill(icon: "figure.walk", value: stepsText, label: "今日步数", tint: .green)
+                MetricPill(icon: "scalemass", value: weightText, label: "最新体重")
+                MetricPill(icon: "figure.walk", value: stepsText, label: "今日步数")
             }
             HStack(spacing: 10) {
-                MetricPill(icon: "bed.double.fill", value: sleepText, label: "昨夜睡眠", tint: .indigo)
-                MetricPill(icon: "heart.fill", value: heartText, label: "最近静息心率", tint: .red)
+                MetricPill(icon: "bed.double.fill", value: sleepText, label: "昨夜睡眠")
+                MetricPill(icon: "heart.fill", value: heartText, label: "最近静息心率")
             }
         }
     }
@@ -169,7 +170,7 @@ struct TodayView: View {
             }
             .font(.subheadline.weight(.medium))
             ProgressView(value: Double(store.sessionsThisWeek), total: 3)
-                .tint(.accentColor)
+                .tint(.primary)
         }
         .contentCard()
     }

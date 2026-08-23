@@ -39,6 +39,7 @@ struct TrainingHomeView: View {
                     } label: {
                         Label("开始完整训练", systemImage: "play.fill")
                             .frame(maxWidth: .infinity)
+                            .foregroundStyle(AppTheme.onAccent)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
@@ -70,9 +71,9 @@ private struct PlanItemRow: View {
         HStack(alignment: .top, spacing: 12) {
             Text(item.orderLabel)
                 .font(.caption.bold().monospacedDigit())
-                .foregroundStyle(item.kind == .strength ? Color.accentColor : .secondary)
+                .foregroundStyle(item.kind == .strength ? Color.primary : .secondary)
                 .frame(width: 34, height: 34)
-                .background((item.kind == .strength ? Color.accentColor : Color.secondary).opacity(0.12), in: Circle())
+                .background((item.kind == .strength ? Color.primary : Color.secondary).opacity(0.10), in: Circle())
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
                     .font(.subheadline.weight(.semibold))
@@ -182,7 +183,7 @@ struct ActiveWorkoutView: View {
                     Circle().stroke(Color.secondary.opacity(0.16), lineWidth: 7)
                     Circle()
                         .trim(from: 0, to: draft.totalSetCount == 0 ? 0 : Double(draft.completedSetCount) / Double(draft.totalSetCount))
-                        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        .stroke(Color.primary, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     Text("\(draft.completedSetCount)")
                         .font(.headline.monospacedDigit())
@@ -195,7 +196,7 @@ struct ActiveWorkoutView: View {
 
     private var warmupReminder: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "flame.fill").foregroundStyle(.orange)
+            Image(systemName: "flame.fill").foregroundStyle(.primary)
             Text(store.nextWorkoutItems.first(where: { $0.kind == .warmup })?.notes ?? "先完成关节和专项热身。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -206,9 +207,9 @@ struct ActiveWorkoutView: View {
     private var symptomSummary: some View {
         VStack(alignment: .leading, spacing: 18) {
             SectionHeader(title: "身体反应", subtitle: "异常评分会阻止自动加重")
-            SymptomSlider(title: "左肩疼痛", value: $draft.shoulderPain, tint: .red)
-            SymptomSlider(title: "恶心", value: $draft.nausea, tint: .orange)
-            SymptomSlider(title: "下背不适", value: $draft.lowerBackDiscomfort, tint: .purple)
+            SymptomSlider(title: "左肩疼痛", value: $draft.shoulderPain, tint: .primary)
+            SymptomSlider(title: "恶心", value: $draft.nausea, tint: .primary)
+            SymptomSlider(title: "下背不适", value: $draft.lowerBackDiscomfort, tint: .primary)
             TextField("整场备注（可选）", text: $draft.note, axis: .vertical)
                 .lineLimit(2...5)
                 .padding(12)
@@ -230,6 +231,7 @@ struct ActiveWorkoutView: View {
         } label: {
             Label("完成训练", systemImage: "checkmark.circle.fill")
                 .frame(maxWidth: .infinity)
+                .foregroundStyle(AppTheme.onAccent)
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
@@ -346,7 +348,7 @@ private struct SetInputRow: View {
             } label: {
                 Image(systemName: set.completed ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(set.completed ? Color.green : .secondary)
+                    .foregroundStyle(set.completed ? Color.primary : .secondary)
                     .frame(width: 34, height: 44)
             }
             .buttonStyle(.plain)
@@ -397,7 +399,7 @@ private struct RestTimerBar: View {
             }
             .padding(.horizontal, 18)
             .frame(height: 68)
-            .glassEffect(.regular.tint(.blue).interactive(), in: .rect(cornerRadius: 25))
+            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 25))
         }
     }
 }
@@ -411,9 +413,9 @@ private struct WorkoutSummaryView: View {
             VStack(spacing: 24) {
                 Image(systemName: "checkmark")
                     .font(.system(size: 34, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.onAccent)
                     .frame(width: 76, height: 76)
-                    .background(Color.green, in: Circle())
+                    .background(Color.primary, in: Circle())
                 VStack(spacing: 7) {
                     Text("训练完成")
                         .font(.largeTitle.bold())
@@ -428,6 +430,7 @@ private struct WorkoutSummaryView: View {
                 Spacer()
                 Button("完成") { dismiss() }
                     .buttonStyle(.borderedProminent)
+                    .foregroundStyle(AppTheme.onAccent)
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
             }

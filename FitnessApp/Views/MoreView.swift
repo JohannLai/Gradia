@@ -13,7 +13,6 @@ struct MoreView: View {
                     } label: {
                         SettingsRow(
                             icon: "list.clipboard.fill",
-                            color: .blue,
                             title: "训练计划",
                             subtitle: "下一次 \(store.schedule.nextPlanDay.rawValue) 日 · \(store.schedule.nextPlanDay.focus)"
                         )
@@ -34,13 +33,12 @@ struct MoreView: View {
                         HStack {
                             SettingsRow(
                                 icon: "heart.fill",
-                                color: .red,
                                 title: "Apple 健康",
                                 subtitle: healthKitSubtitle
                             )
                             Spacer()
                             Image(systemName: healthKit.isAuthorized ? "checkmark.circle.fill" : "chevron.right")
-                                .foregroundStyle(healthKit.isAuthorized ? Color.green : Color.secondary)
+                                .foregroundStyle(healthKit.isAuthorized ? Color.primary : Color.secondary)
                         }
                     }
                     .buttonStyle(.plain)
@@ -50,7 +48,6 @@ struct MoreView: View {
                     } label: {
                         SettingsRow(
                             icon: "icloud.fill",
-                            color: .blue,
                             title: "数据备份",
                             subtitle: backupSubtitle
                         )
@@ -63,7 +60,6 @@ struct MoreView: View {
                     } label: {
                         SettingsRow(
                             icon: "info.circle.fill",
-                            color: .gray,
                             title: "关于 Gradia",
                             subtitle: "版本、隐私与开源致谢"
                         )
@@ -104,16 +100,15 @@ struct MoreView: View {
 
 private struct SettingsRow: View {
     let icon: String
-    let color: Color
     let title: String
     let subtitle: String
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .frame(width: 30, height: 30)
-                .background(color.gradient, in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.primary.opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).foregroundStyle(.primary)
                 Text(subtitle)
@@ -173,9 +168,9 @@ private struct AboutGradiaView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "figure.strengthtraining.traditional")
                         .font(.system(size: 36, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.onAccent)
                         .frame(width: 72, height: 72)
-                        .background(Color.accentColor.gradient, in: RoundedRectangle(cornerRadius: 20))
+                        .background(Color.primary.gradient, in: RoundedRectangle(cornerRadius: 20))
                     Text("Gradia")
                         .font(.title2.bold())
                     Text("专注记录训练、恢复与身体变化")
@@ -231,7 +226,7 @@ private struct GoogleSyncSettingsView: View {
         Form {
             Section {
                 Label("自动备份训练、身体记录和餐食照片", systemImage: "lock.icloud.fill")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.primary)
             } footer: {
                 Text("数据只会保存到你自己的 Google 账号。设置一次后，Gradia 会在产生新记录时自动备份。")
             }

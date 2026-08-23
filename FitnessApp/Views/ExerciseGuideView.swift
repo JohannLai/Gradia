@@ -247,9 +247,9 @@ private struct ExerciseGuideSheet: View {
                             HStack(alignment: .top, spacing: 12) {
                                 Text("\(index + 1)")
                                     .font(.caption.bold().monospacedDigit())
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppTheme.onAccent)
                                     .frame(width: 25, height: 25)
-                                    .background(Color.accentColor, in: Circle())
+                                    .background(Color.primary, in: Circle())
                                 Text(step)
                                     .font(.subheadline)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -261,7 +261,7 @@ private struct ExerciseGuideSheet: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("你的训练提示", systemImage: "lightbulb.fill")
                             .font(.headline)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(.primary)
                         Text(item.notes)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)

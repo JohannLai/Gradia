@@ -8,8 +8,9 @@ struct MealCaptureView: View {
     @State private var mealType = MealCaptureView.inferredMealType()
     @State private var note = ""
     @State private var photos: [Data] = []
-    @State private var pickerItems: [PhotosPickerItem] = []
-    @State private var showCamera = false
+    @State private var mediaSource: MediaSource?
+    @State private var mediaDetent: PresentationDetent = .medium
+    @State private var mediaLaunchCount = 0
     @State private var errorMessage: String?
 
     var body: some View {
@@ -41,17 +42,31 @@ struct MealCaptureView: View {
             .navigationTitle("记录饮食")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
-            .fullScreenCover(isPresented: $showCamera) {
-                CameraPicker { image in
-                    append(image: image)
-                    showCamera = false
-                } onCancel: {
-                    showCamera = false
+            .sheet(item: $mediaSource) { source in
+                MediaSheetEntrance {
+                    switch source {
+                    case .camera:
+                        CameraPicker { image in
+                            append(image: image)
+                            mediaSource = nil
+                        } onCancel: {
+                            mediaSource = nil
+                        }
+                        .ignoresSafeArea()
+                    case .photos:
+                        PhotoLibraryPicker(selectionLimit: max(1, 4 - photos.count)) { images in
+                            images.forEach(append(image:))
+                            mediaSource = nil
+                        } onCancel: {
+                            mediaSource = nil
+                        }
+                    }
                 }
-                .ignoresSafeArea()
-            }
-            .onChange(of: pickerItems) { _, items in
-                Task { await loadPickerItems(items) }
+                .presentationDetents(source.detents, selection: $mediaDetent)
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(34)
+                .presentationBackground(.ultraThinMaterial)
+                .presentationContentInteraction(.scrolls)
             }
             .alert("无法保存", isPresented: .constant(errorMessage != nil)) {
                 Button("好") { errorMessage = nil }
@@ -65,7 +80,7 @@ struct MealCaptureView: View {
         VStack(spacing: 14) {
             Image(systemName: "fork.knife.circle.fill")
                 .font(.system(size: 46))
-                .foregroundStyle(.orange)
+                .foregroundStyle(.primary)
             Text("拍下这一餐即可")
                 .font(.headline)
             Text("不需要手填热量；照片会进入你的私有 Google Drive，等待后续分析。")
@@ -110,18 +125,20 @@ struct MealCaptureView: View {
     private var attachmentComposer: some View {
         HStack(spacing: 12) {
             Button {
-                if UIImagePickerController.isSourceTypeAvailable(.camera) { showCamera = true }
+                if UIImagePickerController.isSourceTypeAvailable(.camera) { open(.camera) }
                 else { errorMessage = "当前设备没有可用相机，请从相册选择。" }
             } label: {
                 Image(systemName: "camera.fill")
                     .frame(width: 44, height: 44)
+                    .symbolEffect(.bounce, value: mediaLaunchCount)
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
 
-            PhotosPicker(selection: $pickerItems, maxSelectionCount: max(0, 4 - photos.count), matching: .images) {
+            Button { open(.photos) } label: {
                 Image(systemName: "photo.on.rectangle.angled")
                     .frame(width: 44, height: 44)
+                    .symbolEffect(.bounce, value: mediaLaunchCount)
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
@@ -143,9 +160,9 @@ struct MealCaptureView: View {
             } label: {
                 Image(systemName: "arrow.up")
                     .font(.headline.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.onAccent)
                     .frame(width: 46, height: 46)
-                    .background(Color.accentColor, in: Circle())
+                    .background(Color.primary, in: Circle())
             }
             .buttonStyle(.plain)
             .disabled(photos.isEmpty)
@@ -156,13 +173,12 @@ struct MealCaptureView: View {
         .background(.bar)
     }
 
-    private func loadPickerItems(_ items: [PhotosPickerItem]) async {
-        for item in items.prefix(4 - photos.count) {
-            guard let data = try? await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data) else { continue }
-            append(image: image)
+    private func open(_ source: MediaSource) {
+        mediaLaunchCount += 1
+        mediaDetent = source == .camera ? .fraction(0.72) : .medium
+        withAnimation(.spring(response: 0.46, dampingFraction: 0.84)) {
+            mediaSource = source
         }
-        pickerItems = []
     }
 
     private func append(image: UIImage) {
@@ -178,6 +194,37 @@ struct MealCaptureView: View {
         case 15..<22: .dinner
         default: .snack
         }
+    }
+}
+
+private enum MediaSource: String, Identifiable {
+    case camera
+    case photos
+
+    var id: String { rawValue }
+
+    var detents: Set<PresentationDetent> {
+        switch self {
+        case .camera: [.fraction(0.72), .large]
+        case .photos: [.medium, .large]
+        }
+    }
+}
+
+private struct MediaSheetEntrance<Content: View>: View {
+    @State private var appeared = false
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .opacity(appeared ? 1 : 0)
+            .scaleEffect(appeared ? 1 : 0.965, anchor: .bottom)
+            .offset(y: appeared ? 0 : 24)
+            .onAppear {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) {
+                    appeared = true
+                }
+            }
     }
 }
 
@@ -207,6 +254,78 @@ private struct CameraPicker: UIViewControllerRepresentable {
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { parent.onCancel() }
+    }
+}
+
+private struct PhotoLibraryPicker: UIViewControllerRepresentable {
+    let selectionLimit: Int
+    let onImages: ([UIImage]) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var configuration = PHPickerConfiguration(photoLibrary: .shared())
+        configuration.filter = .images
+        configuration.selectionLimit = selectionLimit
+        configuration.selection = .ordered
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate, @unchecked Sendable {
+        let parent: PhotoLibraryPicker
+        private let imageBuffer = LoadedImageBuffer()
+
+        init(parent: PhotoLibraryPicker) { self.parent = parent }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            guard !results.isEmpty else {
+                parent.onCancel()
+                return
+            }
+
+            let group = DispatchGroup()
+            let imageBuffer = imageBuffer
+            for (index, result) in results.enumerated() {
+                guard result.itemProvider.canLoadObject(ofClass: UIImage.self) else { continue }
+                group.enter()
+                result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
+                    defer { group.leave() }
+                    guard self != nil, let image = object as? UIImage else { return }
+                    imageBuffer.store(image, at: index)
+                }
+            }
+
+            group.notify(queue: .main) { [weak self] in
+                guard let self else { return }
+                let images = imageBuffer.drain()
+                images.isEmpty ? parent.onCancel() : parent.onImages(images)
+            }
+        }
+    }
+}
+
+private final class LoadedImageBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var images: [Int: UIImage] = [:]
+
+    func store(_ image: UIImage, at index: Int) {
+        lock.lock()
+        images[index] = image
+        lock.unlock()
+    }
+
+    func drain() -> [UIImage] {
+        lock.lock()
+        defer {
+            images.removeAll()
+            lock.unlock()
+        }
+        return images.sorted(by: { $0.key < $1.key }).map(\.value)
     }
 }
 

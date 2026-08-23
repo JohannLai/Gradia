@@ -103,9 +103,9 @@ private struct HistoryView: View {
                     HStack {
                         Text(session.planDay.rawValue)
                             .font(.headline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppTheme.onAccent)
                             .frame(width: 38, height: 38)
-                            .background(Color.accentColor, in: Circle())
+                            .background(Color.primary, in: Circle())
                         VStack(alignment: .leading, spacing: 3) {
                             Text("\(session.planDay.rawValue) 日 · \(session.planDay.focus)")
                                 .font(.subheadline.weight(.semibold))
@@ -165,17 +165,17 @@ private struct CalendarDayCell: View {
             VStack(spacing: 3) {
                 Text("\(Calendar.current.component(.day, from: date))")
                     .font(.caption.weight(date.isSameDay(as: .now) ? .bold : .regular))
-                    .foregroundStyle(date.isSameDay(as: .now) ? Color.accentColor : .primary)
+                    .foregroundStyle(.primary)
                 if let session {
                     Text("\(session.totalVolume, specifier: "%.0f")")
                         .font(.system(size: 9, weight: .semibold, design: .rounded).monospacedDigit())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.onAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 2)
-                        .background(Color.blue, in: RoundedRectangle(cornerRadius: 3))
+                        .background(Color.primary, in: RoundedRectangle(cornerRadius: 3))
                     Text("\(session.planDay.rawValue) · \(session.completedSetCount)组")
                         .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.onAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 2)
                         .background(Color.primary, in: RoundedRectangle(cornerRadius: 3))
@@ -202,9 +202,9 @@ private struct SessionDetailView: View {
             ScrollView {
                 VStack(spacing: 18) {
                     HStack(spacing: 10) {
-                        MetricPill(icon: "scalemass", value: String(format: "%.0f kg", session.totalVolume), label: "总容量", tint: .blue)
-                        MetricPill(icon: "clock.fill", value: "\(session.durationMinutes) 分", label: "时长", tint: .orange)
-                        MetricPill(icon: "square.stack.3d.up.fill", value: "\(session.completedSetCount)", label: "工作组", tint: .green)
+                        MetricPill(icon: "scalemass", value: String(format: "%.0f kg", session.totalVolume), label: "总容量")
+                        MetricPill(icon: "clock.fill", value: "\(session.durationMinutes) 分", label: "时长")
+                        MetricPill(icon: "square.stack.3d.up.fill", value: "\(session.completedSetCount)", label: "工作组")
                     }
                     symptomRow
                     exerciseList
@@ -323,9 +323,9 @@ private struct StatisticsView: View {
         return VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "训练总览", subtitle: period.rawValue + "统计")
             HStack(spacing: 10) {
-                MetricPill(icon: "calendar", value: "\(periodSessions.count)", label: "训练次数", tint: .blue)
-                MetricPill(icon: "square.stack.3d.up", value: "\(totalSets)", label: "工作组", tint: .green)
-                MetricPill(icon: "clock", value: "\(duration)", label: "分钟", tint: .orange)
+                MetricPill(icon: "calendar", value: "\(periodSessions.count)", label: "训练次数")
+                MetricPill(icon: "square.stack.3d.up", value: "\(totalSets)", label: "工作组")
+                MetricPill(icon: "clock", value: "\(duration)", label: "分钟")
             }
         }
         .contentCard()
@@ -345,13 +345,13 @@ private struct StatisticsView: View {
                                 .font(.subheadline.weight(.medium))
                                 .frame(width: 105, alignment: .leading)
                             ProgressView(value: contribution.weightedSets, total: max(sorted.first?.weightedSets ?? 1, 1))
-                                .tint(.blue)
+                                .tint(.primary)
                             Text(contribution.weightedSets, format: .number.precision(.fractionLength(1)))
                                 .font(.subheadline.bold().monospacedDigit())
                                 .frame(width: 38, alignment: .trailing)
                             Text(deltaText(for: contribution))
                                 .font(.caption2.monospacedDigit())
-                                .foregroundStyle(deltaValue(for: contribution) >= 0 ? Color.green : Color.orange)
+                                .foregroundStyle(.secondary)
                                 .frame(width: 42, alignment: .trailing)
                         }
                     }
@@ -391,10 +391,10 @@ private struct StatisticsView: View {
                 Chart(weightMetrics) { metric in
                     if let weight = metric.weightKG {
                         LineMark(x: .value("日期", metric.date), y: .value("体重", weight))
-                            .foregroundStyle(Color.blue.gradient)
+                            .foregroundStyle(Color.primary.gradient)
                             .interpolationMethod(.catmullRom)
                         PointMark(x: .value("日期", metric.date), y: .value("体重", weight))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(.primary)
                     }
                 }
                 .chartYAxisLabel("kg")
@@ -429,7 +429,7 @@ private struct MuscleDetailView: View {
                     LabeledContent("较上期") {
                         Text(delta, format: .number.sign(strategy: .always()).precision(.fractionLength(1)))
                             .font(.headline.monospacedDigit())
-                            .foregroundStyle(delta >= 0 ? Color.green : Color.orange)
+                            .foregroundStyle(.secondary)
                     }
                 } footer: {
                     Text("主肌群每个合格工作组计 1，次肌群计 0.5。\(period == .week ? "当前周期组数" : "月/年均换算为周平均")；颜色表示训练覆盖，不是医学或最佳训练量判断。")

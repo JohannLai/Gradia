@@ -1,19 +1,20 @@
 import SwiftUI
 
 enum AppTheme {
-    static let accent = Color.accentColor
-    static let success = Color.green
-    static let warning = Color.orange
+    static let accent = Color.primary
+    static let onAccent = Color(uiColor: .systemBackground)
+    static let success = Color.primary
+    static let warning = Color.primary
     static let danger = Color.red
     static let cardRadius: CGFloat = 22
     static let pagePadding: CGFloat = 18
 
     static let muscleScale: [Color] = [
-        Color.secondary.opacity(0.12),
-        Color.blue.opacity(0.28),
-        Color.blue.opacity(0.48),
-        Color.blue.opacity(0.72),
-        Color.blue
+        Color.secondary.opacity(0.10),
+        Color.primary.opacity(0.24),
+        Color.primary.opacity(0.42),
+        Color.primary.opacity(0.66),
+        Color.primary.opacity(0.92)
     ]
 }
 
@@ -25,8 +26,12 @@ struct ContentCardModifier: ViewModifier {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.cardRadius, style: .continuous)
-                    .fill(colorScheme == .dark ? Color.white.opacity(0.055) : Color.white)
-                    .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.045), radius: 16, y: 7)
+                    .fill(colorScheme == .dark ? Color.white.opacity(0.065) : Color.white)
+                    .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.05), radius: 18, y: 8)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppTheme.cardRadius, style: .continuous)
+                            .stroke(Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.045), lineWidth: 0.75)
+                    }
             )
     }
 }
@@ -65,7 +70,7 @@ struct MetricPill: View {
     let icon: String
     let value: String
     let label: String
-    var tint: Color = .accentColor
+    var tint: Color = .primary
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -107,4 +112,3 @@ struct EmptyStateView: View {
         .padding(.vertical, 30)
     }
 }
-

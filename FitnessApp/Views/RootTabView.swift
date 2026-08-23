@@ -19,7 +19,7 @@ struct RootTabView: View {
                 MoreView()
             }
         }
-        .tint(.accentColor)
+        .tint(.primary)
     }
 }
 
