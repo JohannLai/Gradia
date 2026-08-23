@@ -741,6 +741,12 @@ final class ActiveWorkoutDraft: ObservableObject {
         exercises.flatMap(\.sets).count
     }
 
+    func addSet(to exerciseID: String) {
+        guard let exercise = exercises.first(where: { $0.id == exerciseID }) else { return }
+        objectWillChange.send()
+        exercise.sets.append(SetDraft(weightText: exercise.sets.last?.weightText ?? ""))
+    }
+
     func makeSession() -> WorkoutSession {
         let end = Date.now
         let records = exercises.flatMap { exercise in

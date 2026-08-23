@@ -123,6 +123,9 @@ struct ActiveWorkoutView: View {
                         configuration: store.exerciseConfigurations[exercise.item.id]
                     ) { restSeconds in
                         restUntil = Date.now.addingTimeInterval(TimeInterval(restSeconds))
+                    } onAddSet: {
+                        draft.addSet(to: exercise.id)
+                        store.persistActiveDraft()
                     }
                 }
                 symptomSummary
@@ -244,6 +247,7 @@ private struct ExerciseInputCard: View {
     let lastSets: [WorkoutSetRecord]
     let configuration: ExerciseConfiguration?
     let onSetCompleted: (Int) -> Void
+    let onAddSet: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -276,6 +280,15 @@ private struct ExerciseInputCard: View {
                     onSetCompleted(seconds)
                 }
             }
+
+            Button(action: onAddSet) {
+                Label("增加一组", systemImage: "plus")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .frame(maxWidth: .infinity, alignment: .trailing)
 
             Text(exercise.item.notes)
                 .font(.caption)

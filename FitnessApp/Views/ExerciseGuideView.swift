@@ -265,24 +265,27 @@ private struct ExerciseThumbnail: View {
     let animationURL: URL
 
     var body: some View {
-        Group {
-            if reduceMotion {
-                AsyncImage(url: imageURL) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFit()
-                    } else {
-                        Image(systemName: "dumbbell.fill")
-                            .font(.title3)
-                            .foregroundStyle(.black.opacity(0.55))
+        ZStack {
+            Circle().fill(Color.white)
+            Group {
+                if reduceMotion {
+                    AsyncImage(url: imageURL) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFit()
+                        } else {
+                            Image(systemName: "dumbbell.fill")
+                                .font(.title3)
+                                .foregroundStyle(.black.opacity(0.55))
+                        }
                     }
+                } else {
+                    AnimatedExerciseImage(url: animationURL)
                 }
-            } else {
-                AnimatedExerciseImage(url: animationURL)
             }
+            .frame(width: 44, height: 44)
+            .clipped()
         }
-        .padding(9)
         .frame(width: 62, height: 62)
-        .background(Color.white, in: Circle())
         .clipShape(Circle())
         .overlay {
             Circle().stroke(Color.primary.opacity(0.10), lineWidth: 0.75)
