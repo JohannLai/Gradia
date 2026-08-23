@@ -280,7 +280,7 @@ private struct ExerciseThumbnail: View {
                 AnimatedExerciseImage(url: animationURL)
             }
         }
-        .padding(3)
+        .padding(9)
         .frame(width: 62, height: 62)
         .background(Color.white, in: Circle())
         .clipShape(Circle())

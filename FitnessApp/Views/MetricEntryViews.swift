@@ -14,6 +14,7 @@ struct MetricEntryView: View {
     @State private var steps = ""
     @State private var fatigue = 3
     @State private var note = ""
+    @FocusState private var focusedField: EntryField?
 
     var body: some View {
         NavigationStack {
@@ -23,6 +24,7 @@ struct MetricEntryView: View {
                         TextField(mode == .weight ? "74.9" : "84.0", text: $value)
                             .keyboardType(.decimalPad)
                             .font(.system(size: 42, weight: .semibold, design: .rounded).monospacedDigit())
+                            .focused($focusedField, equals: .value)
                         Text(mode == .weight ? "kg" : "cm")
                             .foregroundStyle(.secondary)
                     }
@@ -64,10 +66,22 @@ struct MetricEntryView: View {
                     }
                     .disabled(Double(value) == nil)
                 }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { focusedField = nil }
+                }
             }
         }
         .presentationDetents([.medium, .large])
+        .task {
+            try? await Task.sleep(for: .milliseconds(280))
+            focusedField = .value
+        }
     }
+}
+
+private enum EntryField: Hashable {
+    case value
 }
 
 struct RescheduleView: View {
@@ -119,4 +133,3 @@ struct RescheduleView: View {
         .presentationDetents([.medium, .large])
     }
 }
-
