@@ -1,0 +1,31 @@
+import SwiftData
+import SwiftUI
+
+struct RootTabView: View {
+    @State private var selection = 0
+
+    var body: some View {
+        TabView(selection: $selection) {
+            Tab("今天", systemImage: "sun.max.fill", value: 0) {
+                TodayView(selectedTab: $selection)
+            }
+            Tab("训练", systemImage: "dumbbell.fill", value: 1) {
+                TrainingHomeView()
+            }
+            Tab("数据", systemImage: "chart.xyaxis.line", value: 2) {
+                DataHubView()
+            }
+            Tab("更多", systemImage: "ellipsis", value: 3) {
+                MoreView()
+            }
+        }
+        .tint(.accentColor)
+    }
+}
+
+#Preview {
+    let container = try! ModelContainer(for: LocalRecord.self, PendingMutation.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    RootTabView()
+        .environmentObject(AppStore(context: container.mainContext))
+        .environmentObject(HealthKitService())
+}
