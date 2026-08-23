@@ -247,20 +247,7 @@ private struct ExerciseInputCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(exercise.item.name)
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    ExerciseGuideButton(item: exercise.item, configuration: configuration, compact: true)
-                    Text("\(exercise.item.repMin ?? 0)–\(exercise.item.repMax ?? 0) 次")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tint)
-                }
-                Text(exercise.item.equipment)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            ExerciseGuideHeader(item: exercise.item, configuration: configuration)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(lastText)

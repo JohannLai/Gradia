@@ -203,6 +203,89 @@ struct ExerciseGuideButton: View {
     }
 }
 
+struct ExerciseGuideHeader: View {
+    let item: WorkoutPlanItem
+    let configuration: ExerciseConfiguration?
+
+    @State private var isPresented = false
+
+    var body: some View {
+        if let guide = ExerciseGuideCatalog.guide(for: item.id) {
+            Button {
+                isPresented = true
+            } label: {
+                HStack(spacing: 13) {
+                    ExerciseThumbnail(url: guide.imageURL)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(item.name)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text(item.equipment)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    VStack(alignment: .trailing, spacing: 7) {
+                        Text("\(item.repMin ?? 0)–\(item.repMax ?? 0) 次")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(item.name)，查看动作详情")
+            .accessibilityHint("打开动作演示、步骤和训练提示")
+            .sheet(isPresented: $isPresented) {
+                ExerciseGuideSheet(item: item, guide: guide, configuration: configuration)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(item.name)
+                    .font(.title3.weight(.semibold))
+                Text(item.equipment)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct ExerciseThumbnail: View {
+    let url: URL
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            if let image = phase.image {
+                image
+                    .resizable()
+                    .scaledToFit()
+                    .padding(3)
+            } else if phase.error != nil {
+                Image(systemName: "dumbbell.fill")
+                    .font(.title3)
+                    .foregroundStyle(.black.opacity(0.55))
+            } else {
+                ProgressView()
+                    .tint(.black.opacity(0.55))
+            }
+        }
+        .frame(width: 62, height: 62)
+        .background(Color.white, in: Circle())
+        .clipShape(Circle())
+        .overlay {
+            Circle().stroke(Color.primary.opacity(0.10), lineWidth: 0.75)
+        }
+    }
+}
+
 private struct ExerciseGuideSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
