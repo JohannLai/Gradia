@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import ImageIO
 
 struct ExerciseGuide: Identifiable, Hashable, Sendable {
     let planItemID: String
@@ -215,7 +216,7 @@ struct ExerciseGuideHeader: View {
                 isPresented = true
             } label: {
                 HStack(spacing: 13) {
-                    ExerciseThumbnail(url: guide.imageURL)
+                    ExerciseThumbnail(imageURL: guide.imageURL, animationURL: guide.animationURL)
 
                     VStack(alignment: .leading, spacing: 5) {
                         Text(item.name)
@@ -259,30 +260,131 @@ struct ExerciseGuideHeader: View {
 }
 
 private struct ExerciseThumbnail: View {
-    let url: URL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let imageURL: URL
+    let animationURL: URL
 
     var body: some View {
-        AsyncImage(url: url) { phase in
-            if let image = phase.image {
-                image
-                    .resizable()
-                    .scaledToFit()
-                    .padding(3)
-            } else if phase.error != nil {
-                Image(systemName: "dumbbell.fill")
-                    .font(.title3)
-                    .foregroundStyle(.black.opacity(0.55))
+        Group {
+            if reduceMotion {
+                AsyncImage(url: imageURL) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFit()
+                    } else {
+                        Image(systemName: "dumbbell.fill")
+                            .font(.title3)
+                            .foregroundStyle(.black.opacity(0.55))
+                    }
+                }
             } else {
-                ProgressView()
-                    .tint(.black.opacity(0.55))
+                AnimatedExerciseImage(url: animationURL)
             }
         }
+        .padding(3)
         .frame(width: 62, height: 62)
         .background(Color.white, in: Circle())
         .clipShape(Circle())
         .overlay {
             Circle().stroke(Color.primary.opacity(0.10), lineWidth: 0.75)
         }
+    }
+}
+
+private struct AnimatedExerciseImage: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> ExerciseGIFImageView {
+        let imageView = ExerciseGIFImageView()
+        imageView.contentMode = .scaleAspectFit
+        imageView.tintColor = UIColor.black.withAlphaComponent(0.55)
+        imageView.load(url)
+        return imageView
+    }
+
+    func updateUIView(_ imageView: ExerciseGIFImageView, context: Context) {
+        imageView.load(url)
+    }
+
+    static func dismantleUIView(_ imageView: ExerciseGIFImageView, coordinator: ()) {
+        imageView.cancelLoad()
+    }
+}
+
+private final class ExerciseGIFImageView: UIImageView, @unchecked Sendable {
+    private var task: URLSessionDataTask?
+    private var loadedURL: URL?
+
+    func load(_ url: URL) {
+        guard loadedURL != url else { return }
+        cancelLoad()
+        loadedURL = url
+        image = UIImage(systemName: "dumbbell.fill")
+
+        if let cached = ExerciseGIFCache.shared.image(for: url) {
+            image = cached
+            startAnimating()
+            return
+        }
+
+        task = URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let data, let animatedImage = ExerciseGIFDecoder.decode(data) else { return }
+            ExerciseGIFCache.shared.insert(animatedImage, for: url)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, loadedURL == url else { return }
+                image = animatedImage
+                startAnimating()
+            }
+        }
+        task?.resume()
+    }
+
+    func cancelLoad() {
+        task?.cancel()
+        task = nil
+    }
+}
+
+private enum ExerciseGIFDecoder {
+    static func decode(_ data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let frameCount = CGImageSourceGetCount(source)
+        guard frameCount > 0 else { return nil }
+
+        var frames: [UIImage] = []
+        var totalDuration: TimeInterval = 0
+        frames.reserveCapacity(frameCount)
+
+        for index in 0..<frameCount {
+            guard let cgImage = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
+            frames.append(UIImage(cgImage: cgImage))
+            totalDuration += frameDuration(source: source, index: index)
+        }
+
+        guard !frames.isEmpty else { return nil }
+        return UIImage.animatedImage(with: frames, duration: max(totalDuration, 0.1))
+    }
+
+    private static func frameDuration(source: CGImageSource, index: Int) -> TimeInterval {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
+              let gif = properties[kCGImagePropertyGIFDictionary] as? [CFString: Any] else { return 0.1 }
+        let unclamped = gif[kCGImagePropertyGIFUnclampedDelayTime] as? TimeInterval
+        let clamped = gif[kCGImagePropertyGIFDelayTime] as? TimeInterval
+        return max(unclamped ?? clamped ?? 0.1, 0.02)
+    }
+}
+
+private final class ExerciseGIFCache: @unchecked Sendable {
+    static let shared = ExerciseGIFCache()
+    private let cache = NSCache<NSURL, UIImage>()
+
+    private init() { cache.countLimit = 10 }
+
+    func image(for url: URL) -> UIImage? {
+        cache.object(forKey: url as NSURL)
+    }
+
+    func insert(_ image: UIImage, for url: URL) {
+        cache.setObject(image, forKey: url as NSURL)
     }
 }
 
