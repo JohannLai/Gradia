@@ -266,7 +266,8 @@ private struct ExerciseThumbnail: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(Color.white)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white)
             Group {
                 if reduceMotion {
                     AsyncImage(url: imageURL) { phase in
@@ -282,13 +283,14 @@ private struct ExerciseThumbnail: View {
                     AnimatedExerciseImage(url: animationURL)
                 }
             }
-            .frame(width: 44, height: 44)
+            .frame(width: 66, height: 52)
             .clipped()
         }
-        .frame(width: 62, height: 62)
-        .clipShape(Circle())
+        .frame(width: 76, height: 62)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
-            Circle().stroke(Color.primary.opacity(0.10), lineWidth: 0.75)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.primary.opacity(0.10), lineWidth: 0.75)
         }
     }
 }
