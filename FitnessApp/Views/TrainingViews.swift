@@ -1,4 +1,6 @@
+import AVFoundation
 import SwiftUI
+import UIKit
 
 struct TrainingHomeView: View {
     @EnvironmentObject private var store: AppStore
@@ -122,7 +124,8 @@ struct ActiveWorkoutView: View {
                         lastSets: store.lastSets(for: exercise.item.id),
                         configuration: store.exerciseConfigurations[exercise.item.id]
                     ) { restSeconds in
-                        restUntil = Date.now.addingTimeInterval(TimeInterval(restSeconds))
+                        let duration = RestTimerTiming.effectiveDuration(restSeconds)
+                        restUntil = Date.now.addingTimeInterval(TimeInterval(duration))
                     } onAddSet: {
                         draft.addSet(to: exercise.id)
                         store.persistActiveDraft()
@@ -505,25 +508,137 @@ private struct SymptomSlider: View {
 private struct RestTimerBar: View {
     let until: Date
     let cancel: () -> Void
+    @State private var remaining = 0
+    @State private var lastFeedbackSecond: Int?
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let remaining = max(0, Int(until.timeIntervalSince(context.date)))
-            HStack(spacing: 12) {
-                Image(systemName: "timer")
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("组间休息").font(.caption).foregroundStyle(.secondary)
-                    Text(String(format: "%02d:%02d", remaining / 60, remaining % 60))
-                        .font(.title3.bold().monospacedDigit())
-                }
-                Spacer()
-                Button("跳过", action: cancel)
-                    .font(.subheadline.weight(.semibold))
+        HStack(spacing: 12) {
+            Image(systemName: "timer")
+            VStack(alignment: .leading, spacing: 1) {
+                Text("组间休息").font(.caption).foregroundStyle(.secondary)
+                Text(String(format: "%02d:%02d", remaining / 60, remaining % 60))
+                    .font(.title3.bold().monospacedDigit())
             }
-            .padding(.horizontal, 18)
-            .frame(height: 68)
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 25))
+            Spacer()
+            Button("跳过", action: cancel)
+                .font(.subheadline.weight(.semibold))
         }
+        .padding(.horizontal, 18)
+        .frame(height: 68)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 25))
+        .task(id: until) {
+            lastFeedbackSecond = nil
+            RestTimerFeedback.shared.prepare()
+
+            while !Task.isCancelled {
+                let nextRemaining = RestTimerTiming.remaining(until: until, now: .now)
+                remaining = nextRemaining
+
+                if RestTimerTiming.shouldTick(remaining: nextRemaining, lastTicked: lastFeedbackSecond) {
+                    lastFeedbackSecond = nextRemaining
+                    RestTimerFeedback.shared.tick()
+                }
+
+                if nextRemaining == 0 {
+                    RestTimerFeedback.shared.finished()
+                    cancel()
+                    return
+                }
+
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+}
+
+enum RestTimerTiming {
+    static func remaining(until: Date, now: Date) -> Int {
+        max(0, Int(ceil(until.timeIntervalSince(now))))
+    }
+
+    static func shouldTick(remaining: Int, lastTicked: Int?) -> Bool {
+        (1...10).contains(remaining) && lastTicked != remaining
+    }
+
+    static func effectiveDuration(_ duration: Int) -> Int {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--rest-timer-12-seconds") { return 12 }
+        #endif
+        return duration
+    }
+}
+
+@MainActor
+private final class RestTimerFeedback {
+    static let shared = RestTimerFeedback()
+
+    private let tickGenerator = UIImpactFeedbackGenerator(style: .light)
+    private let completionGenerator = UINotificationFeedbackGenerator()
+    private var completionPlayer: AVAudioPlayer?
+
+    private init() {}
+
+    func prepare() {
+        tickGenerator.prepare()
+        completionGenerator.prepare()
+        if completionPlayer == nil {
+            completionPlayer = try? AVAudioPlayer(data: RestTimerCompletionSound.data())
+            completionPlayer?.volume = 0.72
+            completionPlayer?.prepareToPlay()
+        }
+    }
+
+    func tick() {
+        tickGenerator.impactOccurred(intensity: 0.55)
+        tickGenerator.prepare()
+    }
+
+    func finished() {
+        completionGenerator.notificationOccurred(.success)
+        completionGenerator.prepare()
+        completionPlayer?.currentTime = 0
+        completionPlayer?.play()
+    }
+}
+
+enum RestTimerCompletionSound {
+    static func data() -> Data {
+        let sampleRate: UInt32 = 44_100
+        let duration = 0.28
+        let sampleCount = Int(Double(sampleRate) * duration)
+        let bytesPerSample: UInt16 = 2
+        let dataSize = UInt32(sampleCount) * UInt32(bytesPerSample)
+
+        var data = Data()
+        func appendASCII(_ value: String) { data.append(contentsOf: value.utf8) }
+        func appendLE<T: FixedWidthInteger>(_ value: T) {
+            var littleEndian = value.littleEndian
+            withUnsafeBytes(of: &littleEndian) { data.append(contentsOf: $0) }
+        }
+
+        appendASCII("RIFF")
+        appendLE(UInt32(36) + dataSize)
+        appendASCII("WAVEfmt ")
+        appendLE(UInt32(16))
+        appendLE(UInt16(1))
+        appendLE(UInt16(1))
+        appendLE(sampleRate)
+        appendLE(sampleRate * UInt32(bytesPerSample))
+        appendLE(bytesPerSample)
+        appendLE(UInt16(16))
+        appendASCII("data")
+        appendLE(dataSize)
+
+        for index in 0..<sampleCount {
+            let time = Double(index) / Double(sampleRate)
+            let envelope = exp(-time * 15)
+            let tone = sin(2 * Double.pi * 1_760 * time) * 0.68
+                + sin(2 * Double.pi * 2_640 * time) * 0.32
+            let sample = Int16(max(-1, min(1, tone * envelope * 0.58)) * Double(Int16.max))
+            appendLE(sample)
+        }
+
+        return data
     }
 }
 

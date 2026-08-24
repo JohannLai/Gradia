@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import MuscleMap
 import SwiftData
@@ -254,5 +255,27 @@ struct FitnessAppTests {
         #expect(SwipeActionMotion.targetOffset(
             currentOffset: -44, translation: 20, predictedTranslation: 100, actionWidth: 64
         ) == 0)
+    }
+
+    @Test("组间倒计时按绝对时间取整且最后十秒只触发一次")
+    func restTimerTiming() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        #expect(RestTimerTiming.remaining(until: now.addingTimeInterval(10.01), now: now) == 11)
+        #expect(RestTimerTiming.remaining(until: now.addingTimeInterval(9.99), now: now) == 10)
+        #expect(RestTimerTiming.remaining(until: now.addingTimeInterval(-0.01), now: now) == 0)
+        #expect(RestTimerTiming.shouldTick(remaining: 10, lastTicked: nil))
+        #expect(!RestTimerTiming.shouldTick(remaining: 10, lastTicked: 10))
+        #expect(RestTimerTiming.shouldTick(remaining: 1, lastTicked: 2))
+        #expect(!RestTimerTiming.shouldTick(remaining: 0, lastTicked: 1))
+        #expect(!RestTimerTiming.shouldTick(remaining: 11, lastTicked: nil))
+    }
+
+    @Test("组间倒计时结束钟声是可播放的短音频")
+    func restTimerCompletionSound() throws {
+        let data = RestTimerCompletionSound.data()
+        #expect(String(data: data.prefix(4), encoding: .ascii) == "RIFF")
+        let player = try AVAudioPlayer(data: data)
+        #expect(player.duration > 0.2)
+        #expect(player.duration < 0.4)
     }
 }
