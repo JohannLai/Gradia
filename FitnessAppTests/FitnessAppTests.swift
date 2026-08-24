@@ -165,9 +165,23 @@ struct FitnessAppTests {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let store = AppStore(context: container.mainContext, autoSyncEnabled: false)
-        store.importHealthSummary(HealthSummary(weightKG: 74.8, steps: 1_000))
-        store.importHealthSummary(HealthSummary(weightKG: 74.7, steps: 2_000))
+        store.importHealthSummary(HealthSummary(steps: 1_000))
+        store.importHealthSummary(HealthSummary(steps: 2_000))
         #expect(store.pendingCount == 1)
+    }
+
+    @Test("HealthKit 日汇总不会写入或覆盖体重")
+    @MainActor
+    func healthSummaryDoesNotImportWeight() throws {
+        let container = try ModelContainer(
+            for: LocalRecord.self,
+            PendingMutation.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let store = AppStore(context: container.mainContext, autoSyncEnabled: false)
+        store.importHealthSummary(HealthSummary(steps: 3_000, restingHeartRate: 58))
+        #expect(store.bodyMetrics.last(where: { $0.source == .healthKit })?.weightKG == nil)
+        #expect(store.latestWeight == 74.9)
     }
 
     @Test("同步退避从两秒指数增长并封顶五分钟")

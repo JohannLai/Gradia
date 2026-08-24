@@ -312,7 +312,6 @@ struct ScheduleState: Codable, Hashable, Sendable {
 }
 
 struct HealthSummary: Sendable {
-    var weightKG: Double?
     var steps: Int?
     var sleepHours: Double?
     var activeEnergyKCal: Double?

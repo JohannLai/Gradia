@@ -78,7 +78,7 @@ struct MoreView: View {
             }
             return "已连接，自动更新身体与恢复数据"
         }
-        return "同步体重、步数、睡眠和训练"
+        return "同步步数、睡眠、心率和训练"
     }
 
     private var backupSubtitle: String {

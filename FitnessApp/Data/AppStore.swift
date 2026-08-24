@@ -56,12 +56,21 @@ final class AppStore: ObservableObject {
             .filter { $0.weightKG != nil && $0.source == .manual }
             .sorted { $0.date > $1.date }
             .first?.weightKG
-        return manual ?? healthSummary.weightKG ?? bodyMetrics.sorted { $0.date > $1.date }.first(where: { $0.weightKG != nil })?.weightKG
+        let baseline = bodyMetrics
+            .filter { $0.weightKG != nil && $0.source == .inBody }
+            .sorted { $0.date > $1.date }
+            .first?.weightKG
+        return manual ?? baseline
     }
 
     var sevenDayAverageWeight: Double? {
         guard let cutoff = Calendar.current.date(byAdding: .day, value: -6, to: .now.startOfDay) else { return nil }
-        let daily = Dictionary(grouping: bodyMetrics.filter { $0.date >= cutoff && $0.weightKG != nil }, by: { $0.date.startOfDay })
+        let daily = Dictionary(
+            grouping: bodyMetrics.filter {
+                $0.date >= cutoff && $0.weightKG != nil && $0.source != .healthKit
+            },
+            by: { $0.date.startOfDay }
+        )
         let values = daily.values.compactMap { records in
             records.sorted { sourcePriority($0.source) > sourcePriority($1.source) }.first?.weightKG
         }
@@ -160,7 +169,7 @@ final class AppStore: ObservableObject {
         healthSummary = summary
         let metric = BodyMetric(
             id: deterministicHealthMetricID(for: .now), date: .now.startOfDay, source: .healthKit,
-            weightKG: summary.weightKG, waistCM: nil, sleepHours: summary.sleepHours, steps: summary.steps,
+            weightKG: nil, waistCM: nil, sleepHours: summary.sleepHours, steps: summary.steps,
             activeEnergyKCal: summary.activeEnergyKCal, exerciseMinutes: summary.exerciseMinutes,
             restingHeartRate: summary.restingHeartRate, bodyFatPercent: nil, skeletalMuscleKG: nil,
             fatigueScore: nil, note: "Apple 健康每日汇总", healthKitSourceIDs: [], updatedAt: .now

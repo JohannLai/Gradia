@@ -406,7 +406,9 @@ private struct StatisticsView: View {
     }
 
     private var weightMetrics: [BodyMetric] {
-        store.bodyMetrics.filter { $0.weightKG != nil }.sorted { $0.date < $1.date }
+        store.bodyMetrics
+            .filter { $0.weightKG != nil && $0.source != .healthKit }
+            .sorted { $0.date < $1.date }
     }
 }
 

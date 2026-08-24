@@ -12,8 +12,7 @@ final class HealthKitService: ObservableObject {
     private var readTypes: Set<HKObjectType> {
         var types: Set<HKObjectType> = [HKObjectType.workoutType()]
         [
-            HKQuantityTypeIdentifier.bodyMass,
-            .stepCount,
+            HKQuantityTypeIdentifier.stepCount,
             .activeEnergyBurned,
             .appleExerciseTime,
             .heartRate,
@@ -40,7 +39,6 @@ final class HealthKitService: ObservableObject {
     func fetchTodaySummary() async -> HealthSummary {
         guard HKHealthStore.isHealthDataAvailable() else { return .empty }
         let start = Calendar.current.startOfDay(for: .now)
-        async let weight = latestQuantity(.bodyMass, unit: .gramUnit(with: .kilo), start: nil)
         async let steps = cumulativeQuantity(.stepCount, unit: .count(), start: start)
         async let energy = cumulativeQuantity(.activeEnergyBurned, unit: .kilocalorie(), start: start)
         async let exercise = cumulativeQuantity(.appleExerciseTime, unit: .minute(), start: start)
@@ -49,7 +47,6 @@ final class HealthKitService: ObservableObject {
         async let resting = latestQuantity(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: nil)
         async let sleep = sleepHours(endingAt: .now)
         let summary = await HealthSummary(
-            weightKG: weight,
             steps: steps.map { Int($0.rounded()) },
             sleepHours: sleep,
             activeEnergyKCal: energy,
