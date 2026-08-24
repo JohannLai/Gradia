@@ -331,8 +331,8 @@ private struct SwipeToDeleteSetRow<Content: View>: View {
     let onDelete: () -> Void
     @ViewBuilder let content: () -> Content
 
-    @State private var isRevealed = false
-    @GestureState private var dragTranslation: CGFloat = 0
+    @State private var offset: CGFloat = 0
+    @State private var dragOrigin: CGFloat?
     private let actionWidth: CGFloat = 64
 
     var body: some View {
@@ -355,7 +355,7 @@ private struct SwipeToDeleteSetRow<Content: View>: View {
                     .accessibilityLabel("删除这一组")
                 }
             }
-            .offset(x: horizontalOffset)
+            .offset(x: offset)
             .contentShape(Rectangle())
             .simultaneousGesture(swipeGesture, isEnabled: canDelete)
         }
@@ -363,22 +363,47 @@ private struct SwipeToDeleteSetRow<Content: View>: View {
         .clipped()
     }
 
-    private var horizontalOffset: CGFloat {
-        let startingOffset = isRevealed ? -actionWidth : 0
-        return min(0, max(-actionWidth, startingOffset + dragTranslation))
-    }
-
     private var swipeGesture: some Gesture {
         DragGesture(minimumDistance: 12)
-            .updating($dragTranslation) { value, state, _ in
+            .onChanged { value in
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                state = value.translation.width
+                let origin = dragOrigin ?? offset
+                if dragOrigin == nil { dragOrigin = origin }
+                offset = SwipeActionMotion.clampedOffset(
+                    origin + value.translation.width,
+                    actionWidth: actionWidth
+                )
             }
             .onEnded { value in
+                defer { dragOrigin = nil }
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                let finalOffset = (isRevealed ? -actionWidth : 0) + value.translation.width
-                withAnimation(.snappy) { isRevealed = finalOffset < -actionWidth / 2 }
+                let target = SwipeActionMotion.targetOffset(
+                    currentOffset: offset,
+                    translation: value.translation.width,
+                    predictedTranslation: value.predictedEndTranslation.width,
+                    actionWidth: actionWidth
+                )
+                withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0.05)) {
+                    offset = target
+                }
             }
+    }
+}
+
+enum SwipeActionMotion {
+    static func clampedOffset(_ offset: CGFloat, actionWidth: CGFloat) -> CGFloat {
+        min(0, max(-actionWidth, offset))
+    }
+
+    static func targetOffset(
+        currentOffset: CGFloat,
+        translation: CGFloat,
+        predictedTranslation: CGFloat,
+        actionWidth: CGFloat
+    ) -> CGFloat {
+        let remainingProjection = predictedTranslation - translation
+        let projectedOffset = currentOffset + remainingProjection * 0.22
+        return projectedOffset < -actionWidth / 2 ? -actionWidth : 0
     }
 }
 

@@ -243,4 +243,16 @@ struct FitnessAppTests {
         #expect(restoredStore.activeDraft?.id == draft.id)
         #expect(restoredStore.activeDraft?.exercises.first?.sets.count == plannedCount + 1)
     }
+
+    @Test("训练组左滑吸附兼顾慢开和快关")
+    func swipeActionMotion() {
+        #expect(SwipeActionMotion.clampedOffset(-90, actionWidth: 64) == -64)
+        #expect(SwipeActionMotion.clampedOffset(12, actionWidth: 64) == 0)
+        #expect(SwipeActionMotion.targetOffset(
+            currentOffset: -40, translation: -40, predictedTranslation: -42, actionWidth: 64
+        ) == -64)
+        #expect(SwipeActionMotion.targetOffset(
+            currentOffset: -44, translation: 20, predictedTranslation: 100, actionWidth: 64
+        ) == 0)
+    }
 }
