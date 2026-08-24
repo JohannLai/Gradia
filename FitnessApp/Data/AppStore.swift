@@ -748,11 +748,12 @@ final class ActiveWorkoutDraft: ObservableObject {
     }
 
     @discardableResult
-    func removeLastAddedSet(from exerciseID: String) -> Bool {
+    func removeAddedSet(_ setID: UUID, from exerciseID: String) -> Bool {
         guard let exercise = exercises.first(where: { $0.id == exerciseID }),
-              exercise.sets.count > (exercise.item.sets ?? 0) else { return false }
+              let index = exercise.sets.firstIndex(where: { $0.id == setID }),
+              index >= (exercise.item.sets ?? 0) else { return false }
         objectWillChange.send()
-        exercise.sets.removeLast()
+        exercise.sets.remove(at: index)
         return true
     }
 

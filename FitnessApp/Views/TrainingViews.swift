@@ -126,8 +126,8 @@ struct ActiveWorkoutView: View {
                     } onAddSet: {
                         draft.addSet(to: exercise.id)
                         store.persistActiveDraft()
-                    } onRemoveSet: {
-                        draft.removeLastAddedSet(from: exercise.id)
+                    } onDeleteSet: { setID in
+                        draft.removeAddedSet(setID, from: exercise.id)
                         store.persistActiveDraft()
                     }
                 }
@@ -254,7 +254,7 @@ private struct ExerciseInputCard: View {
     let configuration: ExerciseConfiguration?
     let onSetCompleted: (Int) -> Void
     let onAddSet: () -> Void
-    let onRemoveSet: () -> Void
+    let onDeleteSet: (UUID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -280,31 +280,26 @@ private struct ExerciseInputCard: View {
             .foregroundStyle(.secondary)
 
             ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
-                SetInputRow(index: index, set: set) {
-                    if index > 0, set.weightText.isEmpty { set.weightText = exercise.sets[index - 1].weightText }
-                } onComplete: {
-                    let seconds = exercise.item.restSeconds?.lowerBound ?? 90
-                    onSetCompleted(seconds)
+                SwipeToDeleteSetRow(
+                    canDelete: index >= (exercise.item.sets ?? 0),
+                    onDelete: { onDeleteSet(set.id) }
+                ) {
+                    SetInputRow(index: index, set: set) {
+                        if index > 0, set.weightText.isEmpty { set.weightText = exercise.sets[index - 1].weightText }
+                    } onComplete: {
+                        let seconds = exercise.item.restSeconds?.lowerBound ?? 90
+                        onSetCompleted(seconds)
+                    }
                 }
             }
 
-            HStack(spacing: 8) {
-                Text("调整组数")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ControlGroup {
-                    Button(action: onRemoveSet) {
-                        Label("删除最后增加的一组", systemImage: "minus")
-                    }
-                    .disabled(exercise.sets.count <= (exercise.item.sets ?? 0))
-
-                    Button(action: onAddSet) {
-                        Label("增加一组", systemImage: "plus")
-                    }
-                }
-                .labelStyle(.iconOnly)
-                .controlSize(.small)
+            Button(action: onAddSet) {
+                Label("增加一组", systemImage: "plus")
+                    .font(.caption.weight(.semibold))
             }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
             .frame(maxWidth: .infinity, alignment: .trailing)
 
             Text(exercise.item.notes)
@@ -328,6 +323,62 @@ private struct ExerciseInputCard: View {
             lowerBackDiscomfort: 0, configuration: configuration
         )
         return "今日目标：\(recommendation.title)"
+    }
+}
+
+private struct SwipeToDeleteSetRow<Content: View>: View {
+    let canDelete: Bool
+    let onDelete: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var isRevealed = false
+    @GestureState private var dragTranslation: CGFloat = 0
+    private let actionWidth: CGFloat = 64
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            if canDelete {
+                Button(role: .destructive) {
+                    withAnimation(.snappy) { onDelete() }
+                } label: {
+                    Image(systemName: "trash.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: actionWidth, height: 44)
+                        .background(.red, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("删除这一组")
+            }
+
+            content()
+                .offset(x: horizontalOffset)
+                .contentShape(Rectangle())
+                .simultaneousGesture(swipeGesture, isEnabled: canDelete)
+        }
+        .clipped()
+    }
+
+    private var horizontalOffset: CGFloat {
+        let startingOffset = isRevealed ? -actionWidth : 0
+        return min(0, max(-actionWidth, startingOffset + dragTranslation))
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .updating($dragTranslation) { value, state, _ in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                state = value.translation.width
+            }
+            .onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                if value.predictedEndTranslation.width < -140 {
+                    withAnimation(.snappy) { onDelete() }
+                } else {
+                    let projectedOffset = (isRevealed ? -actionWidth : 0) + value.predictedEndTranslation.width
+                    withAnimation(.snappy) { isRevealed = projectedOffset < -actionWidth / 2 }
+                }
+            }
     }
 }
 

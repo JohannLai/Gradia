@@ -231,9 +231,11 @@ struct FitnessAppTests {
         draft.addSet(to: exercise.id)
         #expect(exercise.sets.count == plannedCount + 1)
         #expect(exercise.sets.last?.weightText == "40")
-        #expect(draft.removeLastAddedSet(from: exercise.id))
+        let addedSetID = try #require(exercise.sets.last?.id)
+        #expect(draft.removeAddedSet(addedSetID, from: exercise.id))
         #expect(exercise.sets.count == plannedCount)
-        #expect(!draft.removeLastAddedSet(from: exercise.id))
+        let plannedSetID = try #require(exercise.sets.last?.id)
+        #expect(!draft.removeAddedSet(plannedSetID, from: exercise.id))
 
         draft.addSet(to: exercise.id)
         store.persistActiveDraft()

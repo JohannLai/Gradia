@@ -281,6 +281,7 @@ private struct ExerciseThumbnail: View {
             }
         }
         .frame(width: 76, height: 62)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
