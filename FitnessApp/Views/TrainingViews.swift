@@ -644,37 +644,261 @@ enum RestTimerCompletionSound {
 
 private struct WorkoutSummaryView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let session: WorkoutSession
+
+    @State private var celebrationStartedAt = Date.distantPast
+    @State private var sealRevealed = false
+    @State private var detailsRevealed = false
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 34, weight: .bold))
-                    .foregroundStyle(AppTheme.onAccent)
-                    .frame(width: 76, height: 76)
-                    .background(Color.primary, in: Circle())
-                VStack(spacing: 7) {
-                    Text("训练完成")
-                        .font(.largeTitle.bold())
-                    Text("下一次：\(session.planDay.next.rawValue) 日 · \(session.planDay.next.focus)")
-                        .foregroundStyle(.secondary)
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
+
+                if !reduceMotion, celebrationStartedAt != .distantPast {
+                    CelebrationConfettiLayer(startedAt: celebrationStartedAt)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
-                HStack(spacing: 10) {
-                    MetricPill(icon: "clock", value: "\(session.durationMinutes) 分钟", label: "总时长")
-                    MetricPill(icon: "dumbbell", value: "\(session.completedSetCount) 组", label: "工作组")
+
+                VStack(spacing: 0) {
+                    Spacer(minLength: 40)
+
+                    CelebrationSeal(isRevealed: sealRevealed, reduceMotion: reduceMotion)
+                        .padding(.bottom, 26)
+
+                    VStack(spacing: 9) {
+                        Text("训练完成")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
+                            .tracking(2.2)
+                        Text("漂亮收官")
+                            .font(.system(size: 40, weight: .bold, design: .rounded))
+                        Text("今天的每一组，都算数。")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                    .multilineTextAlignment(.center)
+                    .opacity(detailsRevealed ? 1 : 0)
+                    .offset(y: detailsRevealed ? 0 : 16)
+
+                    VStack(spacing: 12) {
+                        HStack(spacing: 10) {
+                            MetricPill(icon: "clock", value: "\(session.durationMinutes) 分钟", label: "总时长")
+                            MetricPill(icon: "dumbbell", value: "\(session.completedSetCount) 组", label: "工作组")
+                        }
+                        MetricPill(
+                            icon: "scalemass",
+                            value: String(format: "%.0f kg", session.totalVolume),
+                            label: "记录总容量"
+                        )
+                    }
+                    .padding(.top, 28)
+                    .opacity(detailsRevealed ? 1 : 0)
+                    .offset(y: detailsRevealed ? 0 : 22)
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.forward")
+                        Text("下一次：\(session.planDay.next.rawValue) 日 · \(session.planDay.next.focus)")
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 20)
+                    .opacity(detailsRevealed ? 1 : 0)
+
+                    Spacer(minLength: 24)
+
+                    Button("完成") { dismiss() }
+                        .buttonStyle(.borderedProminent)
+                        .foregroundStyle(AppTheme.onAccent)
+                        .controlSize(.large)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityHint("关闭训练总结")
                 }
-                MetricPill(icon: "scalemass", value: String(format: "%.0f kg", session.totalVolume), label: "记录总容量")
-                Spacer()
-                Button("完成") { dismiss() }
-                    .buttonStyle(.borderedProminent)
-                    .foregroundStyle(AppTheme.onAccent)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
+                .padding(.horizontal, AppTheme.pagePadding)
+                .padding(.top, 12)
+                .padding(.bottom, 18)
             }
-            .padding()
             .navigationBarHidden(true)
         }
         .interactiveDismissDisabled()
+        .onAppear(perform: beginCelebration)
+    }
+
+    private func beginCelebration() {
+        guard celebrationStartedAt == .distantPast else { return }
+        celebrationStartedAt = .now
+        CelebrationFeedback.play()
+
+        guard !reduceMotion else {
+            sealRevealed = true
+            detailsRevealed = true
+            return
+        }
+
+        withAnimation(.spring(duration: 0.78, bounce: 0.38)) {
+            sealRevealed = true
+        }
+        withAnimation(.easeOut(duration: 0.62).delay(0.28)) {
+            detailsRevealed = true
+        }
+    }
+}
+
+private struct CelebrationSeal: View {
+    let isRevealed: Bool
+    let reduceMotion: Bool
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<16, id: \.self) { index in
+                Capsule(style: .continuous)
+                    .fill(Color.primary.opacity(index.isMultiple(of: 2) ? 0.26 : 0.12))
+                    .frame(width: index.isMultiple(of: 2) ? 3 : 2, height: index.isMultiple(of: 2) ? 22 : 13)
+                    .offset(y: -76)
+                    .rotationEffect(.degrees(Double(index) * 22.5))
+                    .scaleEffect(isRevealed ? 1 : 0.18, anchor: .bottom)
+                    .opacity(isRevealed ? 1 : 0)
+                    .animation(
+                        reduceMotion ? nil : .spring(duration: 0.7, bounce: 0.35).delay(Double(index) * 0.012),
+                        value: isRevealed
+                    )
+            }
+
+            Circle()
+                .stroke(Color.primary.opacity(0.10), lineWidth: 1)
+                .frame(width: 132, height: 132)
+                .scaleEffect(isRevealed ? 1 : 0.45)
+
+            Circle()
+                .fill(Color.primary)
+                .frame(width: 94, height: 94)
+                .overlay {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 39, weight: .bold))
+                        .foregroundStyle(AppTheme.onAccent)
+                }
+                .shadow(color: Color.primary.opacity(0.18), radius: 28, y: 12)
+                .scaleEffect(isRevealed ? 1 : 0.12)
+                .rotationEffect(.degrees(isRevealed ? 0 : -18))
+        }
+        .frame(width: 180, height: 180)
+        .opacity(isRevealed ? 1 : 0)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct CelebrationConfettiLayer: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let startedAt: Date
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+            Canvas { context, size in
+                let elapsed = timeline.date.timeIntervalSince(startedAt)
+                guard elapsed >= 0, elapsed < 4.2 else { return }
+
+                for particle in CelebrationParticle.burst {
+                    let time = elapsed - particle.delay
+                    guard time >= 0, time < particle.lifetime else { continue }
+
+                    let progress = time / particle.lifetime
+                    let x = size.width * (0.5 + (particle.origin - 0.5) * 0.16)
+                        + particle.horizontalVelocity * time
+                    let y = size.height * 0.18
+                        + particle.upwardVelocity * time
+                        + 0.5 * 420 * time * time
+                    let fade = min(1, time * 7) * max(0, 1 - pow(progress, 5))
+
+                    var particleContext = context
+                    particleContext.opacity = fade
+                    particleContext.translateBy(x: x, y: y)
+                    particleContext.rotate(by: .radians(particle.phase + particle.spin * time))
+
+                    let width = particle.size * (particle.kind == 0 ? 0.42 : 1)
+                    let rect = CGRect(
+                        x: -width / 2,
+                        y: -particle.size / 2,
+                        width: width,
+                        height: particle.size
+                    )
+                    let path: Path
+                    if particle.kind == 2 {
+                        path = Path(ellipseIn: rect)
+                    } else {
+                        path = Path(roundedRect: rect, cornerRadius: min(2.5, width / 2))
+                    }
+                    particleContext.fill(path, with: .color(color(for: particle.tone)))
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func color(for tone: Int) -> Color {
+        if colorScheme == .dark {
+            return [Color.white, Color(white: 0.72), Color(white: 0.42)][tone]
+        }
+        return [Color.black, Color(white: 0.28), Color(white: 0.62)][tone]
+    }
+}
+
+private struct CelebrationParticle: Identifiable {
+    let id: Int
+    let origin: Double
+    let horizontalVelocity: Double
+    let upwardVelocity: Double
+    let delay: Double
+    let lifetime: Double
+    let spin: Double
+    let phase: Double
+    let size: Double
+    let kind: Int
+    let tone: Int
+
+    static let burst: [CelebrationParticle] = (0..<150).map { index in
+        CelebrationParticle(
+            id: index,
+            origin: unit(index * 11 + 1),
+            horizontalVelocity: (unit(index * 11 + 2) - 0.5) * 390,
+            upwardVelocity: -120 - unit(index * 11 + 3) * 310,
+            delay: unit(index * 11 + 4) * 0.52,
+            lifetime: 2.35 + unit(index * 11 + 5) * 1.15,
+            spin: (unit(index * 11 + 6) - 0.5) * 13,
+            phase: unit(index * 11 + 7) * Double.pi,
+            size: 7 + unit(index * 11 + 8) * 10,
+            kind: index % 3,
+            tone: index % 3
+        )
+    }
+
+    private static func unit(_ value: Int) -> Double {
+        let raw = sin(Double(value) * 12.9898) * 43_758.5453
+        return raw - floor(raw)
+    }
+}
+
+@MainActor
+private enum CelebrationFeedback {
+    static func play() {
+        let success = UINotificationFeedbackGenerator()
+        success.prepare()
+        success.notificationOccurred(.success)
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(170))
+            let firstImpact = UIImpactFeedbackGenerator(style: .rigid)
+            firstImpact.prepare()
+            firstImpact.impactOccurred(intensity: 0.82)
+
+            try? await Task.sleep(for: .milliseconds(150))
+            let secondImpact = UIImpactFeedbackGenerator(style: .light)
+            secondImpact.prepare()
+            secondImpact.impactOccurred(intensity: 0.58)
+        }
     }
 }
