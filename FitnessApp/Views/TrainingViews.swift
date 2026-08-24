@@ -336,26 +336,30 @@ private struct SwipeToDeleteSetRow<Content: View>: View {
     private let actionWidth: CGFloat = 64
 
     var body: some View {
-        ZStack(alignment: .trailing) {
-            if canDelete {
-                Button(role: .destructive) {
-                    withAnimation(.snappy) { onDelete() }
-                } label: {
-                    Image(systemName: "trash.fill")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: actionWidth, height: 44)
-                        .background(.red, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("删除这一组")
-            }
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                content()
+                    .frame(width: geometry.size.width, alignment: .leading)
 
-            content()
-                .offset(x: horizontalOffset)
-                .contentShape(Rectangle())
-                .simultaneousGesture(swipeGesture, isEnabled: canDelete)
+                if canDelete {
+                    Button(role: .destructive) {
+                        withAnimation(.snappy) { onDelete() }
+                    } label: {
+                        Image(systemName: "trash.fill")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: actionWidth, height: 44)
+                            .background(.red, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("删除这一组")
+                }
+            }
+            .offset(x: horizontalOffset)
+            .contentShape(Rectangle())
+            .simultaneousGesture(swipeGesture, isEnabled: canDelete)
         }
+        .frame(height: 44)
         .clipped()
     }
 
@@ -372,12 +376,8 @@ private struct SwipeToDeleteSetRow<Content: View>: View {
             }
             .onEnded { value in
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                if value.predictedEndTranslation.width < -140 {
-                    withAnimation(.snappy) { onDelete() }
-                } else {
-                    let projectedOffset = (isRevealed ? -actionWidth : 0) + value.predictedEndTranslation.width
-                    withAnimation(.snappy) { isRevealed = projectedOffset < -actionWidth / 2 }
-                }
+                let finalOffset = (isRevealed ? -actionWidth : 0) + value.translation.width
+                withAnimation(.snappy) { isRevealed = finalOffset < -actionWidth / 2 }
             }
     }
 }
