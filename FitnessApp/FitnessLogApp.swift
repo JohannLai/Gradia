@@ -29,10 +29,13 @@ struct FitnessLogApp: App {
                     await store.syncNow(force: false)
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    guard phase == .active else { return }
-                    Task {
-                        await refreshHealthData()
-                        await store.syncNow(force: false)
+                    if phase == .active {
+                        Task {
+                            await refreshHealthData()
+                            await store.syncNow(force: false)
+                        }
+                    } else {
+                        store.persistActiveDraft()
                     }
                 }
         }

@@ -126,6 +126,9 @@ struct ActiveWorkoutView: View {
                     } onAddSet: {
                         draft.addSet(to: exercise.id)
                         store.persistActiveDraft()
+                    } onRemoveSet: {
+                        draft.removeLastAddedSet(from: exercise.id)
+                        store.persistActiveDraft()
                     }
                 }
                 symptomSummary
@@ -151,10 +154,13 @@ struct ActiveWorkoutView: View {
                     .font(.headline)
             }
         }
-        .confirmationDialog("结束并丢弃这次训练？", isPresented: $showAbandon, titleVisibility: .visible) {
-            Button("丢弃训练", role: .destructive) { store.abandonWorkout() }
-        } message: {
-            Text("已输入的数据会被移除。")
+        .sheet(isPresented: $showAbandon) {
+            AbandonWorkoutSheet {
+                showAbandon = false
+                store.abandonWorkout()
+            }
+            .presentationDetents([.height(250)])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showFinish) {
             if let session = completedSession {
@@ -248,6 +254,7 @@ private struct ExerciseInputCard: View {
     let configuration: ExerciseConfiguration?
     let onSetCompleted: (Int) -> Void
     let onAddSet: () -> Void
+    let onRemoveSet: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -281,13 +288,23 @@ private struct ExerciseInputCard: View {
                 }
             }
 
-            Button(action: onAddSet) {
-                Label("增加一组", systemImage: "plus")
-                    .font(.caption.weight(.semibold))
+            HStack(spacing: 8) {
+                Text("调整组数")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ControlGroup {
+                    Button(action: onRemoveSet) {
+                        Label("删除最后增加的一组", systemImage: "minus")
+                    }
+                    .disabled(exercise.sets.count <= (exercise.item.sets ?? 0))
+
+                    Button(action: onAddSet) {
+                        Label("增加一组", systemImage: "plus")
+                    }
+                }
+                .labelStyle(.iconOnly)
+                .controlSize(.small)
             }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .controlSize(.small)
             .frame(maxWidth: .infinity, alignment: .trailing)
 
             Text(exercise.item.notes)
@@ -311,6 +328,36 @@ private struct ExerciseInputCard: View {
             lowerBackDiscomfort: 0, configuration: configuration
         )
         return "今日目标：\(recommendation.title)"
+    }
+}
+
+private struct AbandonWorkoutSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onAbandon: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 7) {
+                Text("结束并丢弃这次训练？")
+                    .font(.headline)
+                Text("已输入的训练数据会被移除。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button(role: .destructive, action: onAbandon) {
+                Text("丢弃训练")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .controlSize(.large)
+
+            Button("继续训练") { dismiss() }
+                .font(.subheadline.weight(.semibold))
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 8)
     }
 }
 

@@ -212,4 +212,33 @@ struct FitnessAppTests {
         #expect(SyncErrorPresenter.friendlyMessage("Unauthorized") == "访问密钥不正确")
         #expect(SyncErrorPresenter.friendlyMessage("The request timed out.") == "连接超时，请检查网络或更新备份服务")
     }
+
+    @Test("额外训练组可撤销且训练草稿能够恢复")
+    @MainActor
+    func addedSetRemovalAndDraftRestoration() throws {
+        let container = try ModelContainer(
+            for: LocalRecord.self,
+            PendingMutation.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let store = AppStore(context: container.mainContext, autoSyncEnabled: false)
+        store.startWorkout(quickMode: false)
+        let draft = try #require(store.activeDraft)
+        let exercise = try #require(draft.exercises.first)
+        let plannedCount = exercise.sets.count
+        exercise.sets.last?.weightText = "40"
+
+        draft.addSet(to: exercise.id)
+        #expect(exercise.sets.count == plannedCount + 1)
+        #expect(exercise.sets.last?.weightText == "40")
+        #expect(draft.removeLastAddedSet(from: exercise.id))
+        #expect(exercise.sets.count == plannedCount)
+        #expect(!draft.removeLastAddedSet(from: exercise.id))
+
+        draft.addSet(to: exercise.id)
+        store.persistActiveDraft()
+        let restoredStore = AppStore(context: container.mainContext, autoSyncEnabled: false)
+        #expect(restoredStore.activeDraft?.id == draft.id)
+        #expect(restoredStore.activeDraft?.exercises.first?.sets.count == plannedCount + 1)
+    }
 }

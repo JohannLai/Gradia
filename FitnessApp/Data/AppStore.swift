@@ -747,6 +747,15 @@ final class ActiveWorkoutDraft: ObservableObject {
         exercise.sets.append(SetDraft(weightText: exercise.sets.last?.weightText ?? ""))
     }
 
+    @discardableResult
+    func removeLastAddedSet(from exerciseID: String) -> Bool {
+        guard let exercise = exercises.first(where: { $0.id == exerciseID }),
+              exercise.sets.count > (exercise.item.sets ?? 0) else { return false }
+        objectWillChange.send()
+        exercise.sets.removeLast()
+        return true
+    }
+
     func makeSession() -> WorkoutSession {
         let end = Date.now
         let records = exercises.flatMap { exercise in

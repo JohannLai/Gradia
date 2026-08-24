@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct RootTabView: View {
+    @EnvironmentObject private var store: AppStore
     @State private var selection = 0
 
     var body: some View {
@@ -20,6 +21,12 @@ struct RootTabView: View {
             }
         }
         .tint(.primary)
+        .task {
+            if store.activeDraft != nil { selection = 1 }
+        }
+        .onChange(of: store.activeDraft?.id) { _, activeDraftID in
+            if activeDraftID != nil { selection = 1 }
+        }
     }
 }
 

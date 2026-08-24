@@ -265,33 +265,22 @@ private struct ExerciseThumbnail: View {
     let animationURL: URL
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white)
-            Group {
-                if reduceMotion {
-                    AsyncImage(url: imageURL) { phase in
-                        if let image = phase.image {
-                            image.resizable().scaledToFit()
-                        } else {
-                            Image(systemName: "dumbbell.fill")
-                                .font(.title3)
-                                .foregroundStyle(.black.opacity(0.55))
-                        }
+        Group {
+            if reduceMotion {
+                AsyncImage(url: imageURL) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFit()
+                    } else {
+                        Image(systemName: "dumbbell.fill")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
                     }
-                } else {
-                    AnimatedExerciseImage(url: animationURL)
                 }
+            } else {
+                AnimatedExerciseImage(url: animationURL)
             }
-            .frame(width: 66, height: 52)
-            .clipped()
         }
         .frame(width: 76, height: 62)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.primary.opacity(0.10), lineWidth: 0.75)
-        }
     }
 }
 
