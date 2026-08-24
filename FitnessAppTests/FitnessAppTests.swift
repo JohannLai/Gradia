@@ -3,6 +3,7 @@ import Foundation
 import MuscleMap
 import SwiftData
 import Testing
+import UIKit
 @testable import FitnessApp
 
 struct FitnessAppTests {
@@ -277,5 +278,21 @@ struct FitnessAppTests {
         let player = try AVAudioPlayer(data: data)
         #expect(player.duration > 0.2)
         #expect(player.duration < 0.4)
+    }
+
+    @Test("空白点击收起键盘但输入控件和按钮不触发")
+    @MainActor
+    func keyboardDismissalPolicy() {
+        let blank = UIView()
+        #expect(KeyboardDismissalPolicy.shouldDismiss(for: blank))
+
+        let textField = UITextField()
+        #expect(!KeyboardDismissalPolicy.shouldDismiss(for: textField))
+        let textFieldChild = UIView()
+        textField.addSubview(textFieldChild)
+        #expect(!KeyboardDismissalPolicy.shouldDismiss(for: textFieldChild))
+
+        #expect(!KeyboardDismissalPolicy.shouldDismiss(for: UIButton()))
+        #expect(!KeyboardDismissalPolicy.shouldDismiss(for: UISlider()))
     }
 }

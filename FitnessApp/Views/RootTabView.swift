@@ -21,6 +21,11 @@ struct RootTabView: View {
             }
         }
         .tint(.primary)
+        .scrollDismissesKeyboard(.interactively)
+        .background {
+            KeyboardDismissInstaller()
+                .frame(width: 0, height: 0)
+        }
         .task {
             if store.activeDraft != nil { selection = 1 }
         }

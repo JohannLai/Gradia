@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum AppTheme {
     static let accent = Color.primary
@@ -38,6 +39,86 @@ struct ContentCardModifier: ViewModifier {
 
 extension View {
     func contentCard() -> some View { modifier(ContentCardModifier()) }
+}
+
+struct KeyboardDismissInstaller: UIViewRepresentable {
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> WindowProbeView {
+        let view = WindowProbeView()
+        view.onWindowChange = { window in context.coordinator.install(on: window) }
+        return view
+    }
+
+    func updateUIView(_ uiView: WindowProbeView, context: Context) {}
+
+    static func dismantleUIView(_ uiView: WindowProbeView, coordinator: Coordinator) {
+        coordinator.uninstall()
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        private weak var installedWindow: UIWindow?
+        private lazy var recognizer: UITapGestureRecognizer = {
+            let recognizer = UITapGestureRecognizer(target: self, action: #selector(didTapWindow))
+            recognizer.cancelsTouchesInView = false
+            recognizer.delegate = self
+            return recognizer
+        }()
+
+        func install(on window: UIWindow?) {
+            guard installedWindow !== window else { return }
+            uninstall()
+            guard let window else { return }
+            window.addGestureRecognizer(recognizer)
+            installedWindow = window
+        }
+
+        func uninstall() {
+            installedWindow?.removeGestureRecognizer(recognizer)
+            installedWindow = nil
+        }
+
+        @objc private func didTapWindow() {
+            installedWindow?.endEditing(true)
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            KeyboardDismissalPolicy.shouldDismiss(for: touch.view)
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+    }
+
+    final class WindowProbeView: UIView {
+        var onWindowChange: ((UIWindow?) -> Void)?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            onWindowChange?(window)
+        }
+    }
+}
+
+enum KeyboardDismissalPolicy {
+    @MainActor
+    static func shouldDismiss(for touchedView: UIView?) -> Bool {
+        var candidate = touchedView
+        while let view = candidate {
+            if view is UITextField || view is UITextView || view is UIControl {
+                return false
+            }
+            if view.accessibilityTraits.contains(.button) || view.accessibilityTraits.contains(.adjustable) {
+                return false
+            }
+            candidate = view.superview
+        }
+        return true
+    }
 }
 
 struct SectionHeader: View {
