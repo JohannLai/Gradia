@@ -310,7 +310,7 @@ struct FitnessAppTests {
         #expect(!KeyboardDismissalPolicy.shouldDismiss(for: UISlider()))
     }
 
-    @Test("训练分享会导出标准四比五合成图")
+    @Test("训练分享会导出标准三比四合成图")
     @MainActor
     func workoutShareRendering() throws {
         let background = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 400)).image { context in
