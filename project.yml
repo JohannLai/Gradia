@@ -10,7 +10,7 @@ settings:
     SWIFT_VERSION: "6.0"
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
-    CURRENT_PROJECT_VERSION: 16
+    CURRENT_PROJECT_VERSION: 19
     MARKETING_VERSION: 1.0
     GENERATE_INFOPLIST_FILE: YES
     ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
@@ -38,7 +38,7 @@ targets:
         PRODUCT_MODULE_NAME: FitnessApp
         INFOPLIST_KEY_CFBundleDisplayName: Gradia
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.healthcare-fitness
-        INFOPLIST_KEY_NSCameraUsageDescription: 用于拍摄餐食和体型照片，照片仅保存到你的私有健身记录。
+        INFOPLIST_KEY_NSCameraUsageDescription: 用于拍摄餐食、体型照片和训练分享背景；只有你主动提交或分享时才会使用照片。
         INFOPLIST_KEY_NSHealthShareUsageDescription: 读取体重、步数、睡眠、训练和心率，用于生成个人训练与恢复统计。
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: 将你在 App 内完成的力量训练保存到 Apple 健康。
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES

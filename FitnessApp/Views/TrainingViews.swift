@@ -650,6 +650,7 @@ private struct WorkoutSummaryView: View {
     @State private var celebrationStartedAt = Date.distantPast
     @State private var sealRevealed = false
     @State private var detailsRevealed = false
+    @State private var showingShareComposer = false
 
     var body: some View {
         NavigationStack {
@@ -712,12 +713,25 @@ private struct WorkoutSummaryView: View {
 
                     Spacer(minLength: 24)
 
-                    Button("完成") { dismiss() }
+                    VStack(spacing: 10) {
+                        Button {
+                            showingShareComposer = true
+                        } label: {
+                            Label("分享这次训练", systemImage: "square.and.arrow.up")
+                                .frame(maxWidth: .infinity)
+                        }
                         .buttonStyle(.borderedProminent)
                         .foregroundStyle(AppTheme.onAccent)
                         .controlSize(.large)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityHint("关闭训练总结")
+                        .accessibilityHint("拍摄或选择照片并合成训练数据")
+
+                        Button("完成") { dismiss() }
+                            .buttonStyle(.bordered)
+                            .tint(.primary)
+                            .controlSize(.large)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityHint("关闭训练总结")
+                    }
                 }
                 .padding(.horizontal, AppTheme.pagePadding)
                 .padding(.top, 12)
@@ -726,6 +740,9 @@ private struct WorkoutSummaryView: View {
             .navigationBarHidden(true)
         }
         .interactiveDismissDisabled()
+        .fullScreenCover(isPresented: $showingShareComposer) {
+            WorkoutShareView(session: session)
+        }
         .onAppear(perform: beginCelebration)
     }
 

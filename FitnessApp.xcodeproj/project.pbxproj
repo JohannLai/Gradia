@@ -27,6 +27,7 @@
 		9BA1A92CD776376724B2CF1E /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA71D8A9AA6E1A2218E48FEC /* TodayView.swift */; };
 		B716F7D785F12839BE12F66C /* GoogleAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D57ECDFE98D1802CF878AD /* GoogleAPIClient.swift */; };
 		D7F2E1BB29E8A7126C95AC30 /* TrainingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE44340D7516CE6E74B6D543 /* TrainingViews.swift */; };
+		D7F2E1BB29E8A7126C95AC31 /* WorkoutShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE44340D7516CE6E74B6D544 /* WorkoutShareView.swift */; };
 		EF579379944238FEC07A619D /* MuscleMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2574EE01BCE03B166DA097 /* MuscleMapView.swift */; };
 		FF4A54D8F83B63EC8D163C10 /* FitnessLogApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668AF30001DBE2FA2C1362B7 /* FitnessLogApp.swift */; };
 /* End PBXBuildFile section */
@@ -60,6 +61,7 @@
 		AA2574EE01BCE03B166DA097 /* MuscleMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuscleMapView.swift; sourceTree = "<group>"; };
 		B8E94DF542A50FC82BD13DA3 /* DataHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataHubView.swift; sourceTree = "<group>"; };
 		CE44340D7516CE6E74B6D543 /* TrainingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingViews.swift; sourceTree = "<group>"; };
+		CE44340D7516CE6E74B6D544 /* WorkoutShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutShareView.swift; sourceTree = "<group>"; };
 		D5D6F00D821F65A269678B30 /* FitnessAppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FitnessAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA41506021EE7B9718C738BD /* MoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoreView.swift; sourceTree = "<group>"; };
 		E52D7F5E335708C365E3B639 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
@@ -91,6 +93,7 @@
 				529033DC7F702D8717824803 /* RootTabView.swift */,
 				EA71D8A9AA6E1A2218E48FEC /* TodayView.swift */,
 				CE44340D7516CE6E74B6D543 /* TrainingViews.swift */,
+				CE44340D7516CE6E74B6D544 /* WorkoutShareView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -308,6 +311,7 @@
 				52022ED932A93A4DE50ED7A7 /* SeedData.swift in Sources */,
 				9BA1A92CD776376724B2CF1E /* TodayView.swift in Sources */,
 				D7F2E1BB29E8A7126C95AC30 /* TrainingViews.swift in Sources */,
+				D7F2E1BB29E8A7126C95AC31 /* WorkoutShareView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -330,7 +334,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_KEY_CFBundleDisplayName = Gradia;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
-				INFOPLIST_KEY_NSCameraUsageDescription = "用于拍摄餐食和体型照片，照片仅保存到你的私有健身记录。";
+				INFOPLIST_KEY_NSCameraUsageDescription = "用于拍摄餐食、体型照片和训练分享背景；只有你主动提交或分享时才会使用照片。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取体重、步数、睡眠、训练和心率，用于生成个人训练与恢复统计。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将你在 App 内完成的力量训练保存到 Apple 健康。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -374,7 +378,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_KEY_CFBundleDisplayName = Gradia;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
-				INFOPLIST_KEY_NSCameraUsageDescription = "用于拍摄餐食和体型照片，照片仅保存到你的私有健身记录。";
+				INFOPLIST_KEY_NSCameraUsageDescription = "用于拍摄餐食、体型照片和训练分享背景；只有你主动提交或分享时才会使用照片。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取体重、步数、睡眠、训练和心率，用于生成个人训练与恢复统计。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将你在 App 内完成的力量训练保存到 Apple 健康。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -429,7 +433,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 19;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -516,7 +520,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 19;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;

@@ -309,4 +309,41 @@ struct FitnessAppTests {
         #expect(!KeyboardDismissalPolicy.shouldDismiss(for: UIButton()))
         #expect(!KeyboardDismissalPolicy.shouldDismiss(for: UISlider()))
     }
+
+    @Test("训练分享会导出标准四比五合成图")
+    @MainActor
+    func workoutShareRendering() throws {
+        let background = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 400)).image { context in
+            UIColor.darkGray.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 300, height: 400))
+        }
+        let session = WorkoutSession(
+            id: UUID(),
+            date: Date(timeIntervalSince1970: 1_787_587_200),
+            planDay: .a,
+            startedAt: Date(timeIntervalSince1970: 1_787_587_200),
+            endedAt: Date(timeIntervalSince1970: 1_787_590_800),
+            durationMinutes: 60,
+            sets: [
+                WorkoutSetRecord(
+                    id: UUID(), exerciseID: "a1", setIndex: 0, weightKG: 40,
+                    reps: 10, rir: 2, completed: true, stoppedForPain: false, completedAt: .now
+                )
+            ],
+            shoulderPain: 0,
+            nausea: 0,
+            lowerBackDiscomfort: 0,
+            note: "",
+            quickMode: false
+        )
+
+        let output = try #require(WorkoutShareRenderer.render(
+            image: background,
+            session: session,
+            overlayPosition: CGPoint(x: 0.68, y: 0.34)
+        ))
+
+        #expect(output.size == WorkoutShareRenderer.outputSize)
+        #expect(output.pngData()?.isEmpty == false)
+    }
 }
