@@ -11,54 +11,108 @@ struct MealCaptureView: View {
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showCamera = false
     @State private var errorMessage: String?
+    @State private var saveState: SaveState = .idle
+
+    private var hasPhotos: Bool { !photos.isEmpty }
+    private var canSubmit: Bool { hasPhotos && saveState == .idle }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        Picker("餐次", selection: $mealType) {
-                            ForEach(MealType.allCases) { type in Text(type.rawValue).tag(type) }
-                        }
-                        .pickerStyle(.segmented)
-
-                        if photos.isEmpty {
-                            photoPlaceholder
-                        } else {
-                            photoStrip
-                        }
-
-                        TextField("补充一句备注（可选）", text: $note, axis: .vertical)
-                            .lineLimit(2...5)
-                            .padding(14)
-                            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 18))
+            content
+                .navigationTitle("记录饮食")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { dismiss() }
+                            .disabled(saveState != .idle)
                     }
-                    .padding()
                 }
-
-                attachmentComposer
-            }
-            .navigationTitle("记录饮食")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
-            .fullScreenCover(isPresented: $showCamera) {
-                CameraPicker { image in
-                    append(image: image)
-                    showCamera = false
-                } onCancel: {
-                    showCamera = false
+                .fullScreenCover(isPresented: $showCamera) { cameraCover }
+                .onChange(of: pickerItems) { _, items in
+                    Task { await loadPickerItems(items) }
                 }
-                .ignoresSafeArea()
-            }
-            .onChange(of: pickerItems) { _, items in
-                Task { await loadPickerItems(items) }
-            }
-            .alert("无法保存", isPresented: .constant(errorMessage != nil)) {
-                Button("好") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
+                .alert("无法保存", isPresented: errorAlertBinding) {
+                    Button("好") { errorMessage = nil }
+                } message: {
+                    Text(errorMessage ?? "")
+                }
+                .sensoryFeedback(.success, trigger: saveSucceeded)
+                .animation(.snappy(duration: 0.28), value: photos.count)
+                .animation(.snappy(duration: 0.28), value: saveState)
         }
+    }
+
+    private var saveSucceeded: Bool { saveState == .saved }
+
+    @ViewBuilder
+    private var content: some View {
+        if saveState == .saved {
+            successPanel
+        } else {
+            captureForm
+        }
+    }
+
+    private var errorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )
+    }
+
+    private var cameraCover: some View {
+        CameraPicker { image in
+            append(image: image)
+            showCamera = false
+        } onCancel: {
+            showCamera = false
+        }
+        .ignoresSafeArea()
+    }
+
+    private var captureForm: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Picker("餐次", selection: $mealType) {
+                        ForEach(MealType.allCases) { type in Text(type.rawValue).tag(type) }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(saveState == .saving)
+
+                    if photos.isEmpty {
+                        photoPlaceholder
+                    } else {
+                        photoStrip
+                    }
+
+                    TextField("补充一句备注（可选）", text: $note, axis: .vertical)
+                        .lineLimit(2...5)
+                        .padding(14)
+                        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 18))
+                        .disabled(saveState == .saving)
+                }
+                .padding()
+            }
+
+            attachmentComposer
+        }
+    }
+
+    private var successPanel: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 56, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+            Text("已记录这一餐")
+                .font(.title2.weight(.semibold))
+            Text("\(mealType.rawValue) · \(photos.count) 张照片已保存")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("已记录这一餐，\(mealType.rawValue)，\(photos.count) 张照片已保存")
     }
 
     private var photoPlaceholder: some View {
@@ -118,6 +172,7 @@ struct MealCaptureView: View {
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
+            .disabled(saveState == .saving)
 
             PhotosPicker(selection: $pickerItems, maxSelectionCount: max(0, 4 - photos.count), matching: .images) {
                 Image(systemName: "photo.on.rectangle.angled")
@@ -125,7 +180,7 @@ struct MealCaptureView: View {
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
-            .disabled(photos.count >= 4)
+            .disabled(photos.count >= 4 || saveState == .saving)
 
             Spacer()
 
@@ -133,31 +188,67 @@ struct MealCaptureView: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
 
-            Button {
-                do {
-                    try store.saveMeal(type: mealType, note: note, imageData: photos)
-                    dismiss()
-                } catch {
-                    errorMessage = error.localizedDescription
-                }
-            } label: {
-                Image(systemName: "arrow.up")
-                    .font(.headline.bold())
-                    .foregroundStyle(AppTheme.onAccent)
-                    .frame(width: 46, height: 46)
-                    .background(Color.primary, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(photos.isEmpty)
-            .opacity(photos.isEmpty ? 0.4 : 1)
+            submitButton
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(.bar)
     }
 
+    private var submitButton: some View {
+        Button(action: submit) {
+            ZStack {
+                Circle()
+                    .fill(submitFill)
+                if saveState == .saving {
+                    ProgressView()
+                        .tint(submitGlyph)
+                } else {
+                    Image(systemName: "arrow.up")
+                        .font(.headline.bold())
+                        .foregroundStyle(submitGlyph)
+                }
+            }
+            .frame(width: 46, height: 46)
+            .environment(\.isEnabled, true)
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSubmit)
+        .id("meal-submit-\(hasPhotos)")
+        .accessibilityLabel("提交饮食记录")
+        .accessibilityHint(hasPhotos ? "保存这一餐" : "先添加至少一张照片")
+    }
+
+    private var submitFill: Color {
+        hasPhotos ? Color(uiColor: .label) : Color(uiColor: .tertiaryLabel).opacity(0.28)
+    }
+
+    private var submitGlyph: Color {
+        hasPhotos ? Color(uiColor: .systemBackground) : Color(uiColor: .tertiaryLabel)
+    }
+
+    @MainActor
+    private func submit() {
+        guard canSubmit else { return }
+        saveState = .saving
+        do {
+            try store.saveMeal(type: mealType, note: note, imageData: photos)
+            saveState = .saved
+            Task {
+                try await Task.sleep(for: .milliseconds(1100))
+                dismiss()
+            }
+        } catch {
+            saveState = .idle
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
     private func loadPickerItems(_ items: [PhotosPickerItem]) async {
-        for item in items.prefix(4 - photos.count) {
+        guard !items.isEmpty else { return }
+        for item in items {
+            guard photos.count < 4 else { break }
             guard let data = try? await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data) else { continue }
             append(image: image)
@@ -179,6 +270,10 @@ struct MealCaptureView: View {
         default: .snack
         }
     }
+}
+
+private enum SaveState: Equatable {
+    case idle, saving, saved
 }
 
 private struct CameraPicker: UIViewControllerRepresentable {
