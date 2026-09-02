@@ -376,7 +376,7 @@ private struct WorkoutShareMetrics: View {
                 .tracking(2.6 * scale)
                 .padding(.bottom, 5 * scale)
 
-            Text("\(session.planDay.rawValue) 日 · \(session.planDay.focus)")
+            Text(WorkoutShareCopy.title(for: session))
                 .font(.system(size: 26 * scale, weight: .bold, design: .rounded))
                 .padding(.bottom, 22 * scale)
 
@@ -406,6 +406,12 @@ private struct WorkoutShareMetrics: View {
                 .lineLimit(1)
         }
         .padding(.bottom, isLast ? 0 : 15 * scale)
+    }
+}
+
+enum WorkoutShareCopy {
+    static func title(for session: WorkoutSession) -> String {
+        session.planDay.focus
     }
 }
 

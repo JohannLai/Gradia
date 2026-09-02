@@ -196,6 +196,7 @@ private struct SessionDetailView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
     let session: WorkoutSession
+    @State private var showingShareComposer = false
 
     var body: some View {
         NavigationStack {
@@ -206,6 +207,16 @@ private struct SessionDetailView: View {
                         MetricPill(icon: "clock.fill", value: "\(session.durationMinutes) 分", label: "时长")
                         MetricPill(icon: "square.stack.3d.up.fill", value: "\(session.completedSetCount)", label: "工作组")
                     }
+                    Button {
+                        showingShareComposer = true
+                    } label: {
+                        Label("分享这次训练", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .foregroundStyle(AppTheme.onAccent)
+                    .controlSize(.large)
+                    .accessibilityHint("拍摄或选择照片并合成这次训练的数据")
                     symptomRow
                     exerciseList
                 }
@@ -215,6 +226,9 @@ private struct SessionDetailView: View {
             .navigationTitle("\(session.planDay.rawValue) 日训练")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+        }
+        .fullScreenCover(isPresented: $showingShareComposer) {
+            WorkoutShareView(session: session)
         }
     }
 

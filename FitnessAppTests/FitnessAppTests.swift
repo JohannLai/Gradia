@@ -374,5 +374,7 @@ struct FitnessAppTests {
 
         #expect(output.size == WorkoutShareRenderer.outputSize)
         #expect(output.pngData()?.isEmpty == false)
+        #expect(WorkoutShareCopy.title(for: session) == "胸 + 股四头")
+        #expect(!WorkoutShareCopy.title(for: session).contains("A 日"))
     }
 }
