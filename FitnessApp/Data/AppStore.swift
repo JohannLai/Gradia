@@ -753,14 +753,18 @@ final class ActiveWorkoutDraft: ObservableObject {
     func addSet(to exerciseID: String) {
         guard let exercise = exercises.first(where: { $0.id == exerciseID }) else { return }
         objectWillChange.send()
-        exercise.sets.append(SetDraft(weightText: exercise.sets.last?.weightText ?? ""))
+        let newSet = SetDraft()
+        if let previous = exercise.sets.last {
+            newSet.copyValues(from: previous)
+        }
+        exercise.sets.append(newSet)
     }
 
     @discardableResult
     func removeAddedSet(_ setID: UUID, from exerciseID: String) -> Bool {
         guard let exercise = exercises.first(where: { $0.id == exerciseID }),
               let index = exercise.sets.firstIndex(where: { $0.id == setID }),
-              index >= (exercise.item.sets ?? 0) else { return false }
+              index > 0 else { return false }
         objectWillChange.send()
         exercise.sets.remove(at: index)
         return true
@@ -796,7 +800,7 @@ final class ExerciseDraft: ObservableObject, Identifiable {
     init(item: WorkoutPlanItem, sets: [SetDraft]? = nil) {
         self.id = item.id
         self.item = item
-        self.sets = sets ?? (0..<(item.sets ?? 0)).map { _ in SetDraft() }
+        self.sets = sets ?? [SetDraft()]
     }
 }
 
@@ -824,4 +828,12 @@ final class SetDraft: ObservableObject, Identifiable {
     var weightKG: Double? { Double(weightText.replacingOccurrences(of: ",", with: ".")) }
     var reps: Int { Int(repsText) ?? 0 }
     var rir: Double? { Double(rirText.replacingOccurrences(of: ",", with: ".")) }
+
+    func copyValues(from previous: SetDraft) {
+        weightText = previous.weightText
+        repsText = previous.repsText
+        rirText = previous.rirText
+        completed = false
+        stoppedForPain = false
+    }
 }

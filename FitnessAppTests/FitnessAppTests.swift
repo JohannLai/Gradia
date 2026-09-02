@@ -229,7 +229,7 @@ struct FitnessAppTests {
         #expect(SyncErrorPresenter.friendlyMessage("The request timed out.") == "连接超时，请检查网络或更新备份服务")
     }
 
-    @Test("额外训练组可撤销且训练草稿能够恢复")
+    @Test("训练默认一组，新增组复制全部数值且可撤销恢复")
     @MainActor
     func addedSetRemovalAndDraftRestoration() throws {
         let container = try ModelContainer(
@@ -241,15 +241,20 @@ struct FitnessAppTests {
         store.startWorkout(quickMode: false)
         let draft = try #require(store.activeDraft)
         let exercise = try #require(draft.exercises.first)
-        let plannedCount = exercise.sets.count
+        #expect(exercise.sets.count == 1)
         exercise.sets.last?.weightText = "40"
+        exercise.sets.last?.repsText = "10"
+        exercise.sets.last?.rirText = "2"
 
         draft.addSet(to: exercise.id)
-        #expect(exercise.sets.count == plannedCount + 1)
+        #expect(exercise.sets.count == 2)
         #expect(exercise.sets.last?.weightText == "40")
+        #expect(exercise.sets.last?.repsText == "10")
+        #expect(exercise.sets.last?.rirText == "2")
+        #expect(exercise.sets.last?.completed == false)
         let addedSetID = try #require(exercise.sets.last?.id)
         #expect(draft.removeAddedSet(addedSetID, from: exercise.id))
-        #expect(exercise.sets.count == plannedCount)
+        #expect(exercise.sets.count == 1)
         let plannedSetID = try #require(exercise.sets.last?.id)
         #expect(!draft.removeAddedSet(plannedSetID, from: exercise.id))
 
@@ -257,7 +262,7 @@ struct FitnessAppTests {
         store.persistActiveDraft()
         let restoredStore = AppStore(context: container.mainContext, autoSyncEnabled: false)
         #expect(restoredStore.activeDraft?.id == draft.id)
-        #expect(restoredStore.activeDraft?.exercises.first?.sets.count == plannedCount + 1)
+        #expect(restoredStore.activeDraft?.exercises.first?.sets.count == 2)
     }
 
     @Test("训练组左滑吸附兼顾慢开和快关")
@@ -292,6 +297,30 @@ struct FitnessAppTests {
         let player = try AVAudioPlayer(data: data)
         #expect(player.duration > 0.2)
         #expect(player.duration < 0.4)
+    }
+
+    @Test("倒计时提示音与其他 App 音乐混音")
+    func restTimerDoesNotInterruptMusic() {
+        #expect(RestTimerAudioPolicy.category == .ambient)
+        #expect(RestTimerAudioPolicy.options.contains(.mixWithOthers))
+    }
+
+    @Test("新增组复制上一组输入但不会提前完成")
+    @MainActor
+    func copyPreviousSetValues() {
+        let previous = SetDraft(
+            weightText: "42.5", repsText: "10", rirText: "2",
+            completed: true, stoppedForPain: true
+        )
+        let next = SetDraft(weightText: "", repsText: "", rirText: "")
+
+        next.copyValues(from: previous)
+
+        #expect(next.weightText == "42.5")
+        #expect(next.repsText == "10")
+        #expect(next.rirText == "2")
+        #expect(!next.completed)
+        #expect(!next.stoppedForPain)
     }
 
     @Test("空白点击收起键盘但输入控件和按钮不触发")

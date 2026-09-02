@@ -4,18 +4,24 @@ import UIKit
 
 struct TrainingHomeView: View {
     @EnvironmentObject private var store: AppStore
+    @State private var completedSession: WorkoutSession?
 
     var body: some View {
         NavigationStack {
             Group {
                 if let draft = store.activeDraft {
-                    ActiveWorkoutView(draft: draft)
+                    ActiveWorkoutView(draft: draft) { session in
+                        completedSession = session
+                    }
                 } else {
                     workoutOverview
                 }
             }
             .navigationTitle(store.activeDraft == nil ? "训练" : "")
             .navigationBarTitleDisplayMode(store.activeDraft == nil ? .large : .inline)
+        }
+        .fullScreenCover(item: $completedSession) { session in
+            WorkoutSummaryView(session: session)
         }
     }
 
@@ -108,10 +114,9 @@ struct ActiveWorkoutView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var healthKit: HealthKitService
     @ObservedObject var draft: ActiveWorkoutDraft
+    let onWorkoutCompleted: (WorkoutSession) -> Void
     @State private var restUntil: Date?
-    @State private var showFinish = false
     @State private var showAbandon = false
-    @State private var completedSession: WorkoutSession?
 
     var body: some View {
         ScrollView {
@@ -164,11 +169,6 @@ struct ActiveWorkoutView: View {
             }
             .presentationDetents([.height(250)])
             .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showFinish) {
-            if let session = completedSession {
-                WorkoutSummaryView(session: session)
-            }
         }
         .task(id: draft.id) {
             while !Task.isCancelled {
@@ -233,8 +233,7 @@ struct ActiveWorkoutView: View {
     private var finishButton: some View {
         Button {
             guard let session = store.completeWorkout() else { return }
-            completedSession = session
-            showFinish = true
+            onWorkoutCompleted(session)
             Task {
                 if let workoutID = try? await healthKit.saveWorkout(session) {
                     store.linkHealthKitWorkout(sessionID: session.id, workoutID: workoutID)
@@ -273,7 +272,8 @@ private struct ExerciseInputCard: View {
 
             HStack {
                 Text("组")
-                Spacer()
+                    .frame(width: 24)
+                Spacer(minLength: 0)
                 Text("重量 kg").frame(width: 82)
                 Text("次数").frame(width: 62)
                 Text("RIR").frame(width: 55)
@@ -284,12 +284,10 @@ private struct ExerciseInputCard: View {
 
             ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
                 SwipeToDeleteSetRow(
-                    canDelete: index >= (exercise.item.sets ?? 0),
+                    canDelete: index > 0,
                     onDelete: { onDeleteSet(set.id) }
                 ) {
                     SetInputRow(index: index, set: set) {
-                        if index > 0, set.weightText.isEmpty { set.weightText = exercise.sets[index - 1].weightText }
-                    } onComplete: {
                         let seconds = exercise.item.restSeconds?.lowerBound ?? 90
                         onSetCompleted(seconds)
                     }
@@ -443,7 +441,6 @@ private struct AbandonWorkoutSheet: View {
 private struct SetInputRow: View {
     let index: Int
     @ObservedObject var set: SetDraft
-    let onFocus: () -> Void
     let onComplete: () -> Void
 
     var body: some View {
@@ -457,7 +454,6 @@ private struct SetInputRow: View {
                 .multilineTextAlignment(.center)
                 .frame(width: 82, height: 44)
                 .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
-                .onTapGesture(perform: onFocus)
             TextField("—", text: $set.repsText)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.center)
@@ -579,6 +575,7 @@ private final class RestTimerFeedback {
     private init() {}
 
     func prepare() {
+        RestTimerAudioPolicy.configure()
         tickGenerator.prepare()
         completionGenerator.prepare()
         if completionPlayer == nil {
@@ -598,6 +595,21 @@ private final class RestTimerFeedback {
         completionGenerator.prepare()
         completionPlayer?.currentTime = 0
         completionPlayer?.play()
+    }
+}
+
+enum RestTimerAudioPolicy {
+    static let category: AVAudioSession.Category = .ambient
+    static let options: AVAudioSession.CategoryOptions = [.mixWithOthers]
+
+    @MainActor
+    static func configure() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(category, mode: .default, options: options)
+        } catch {
+            // Haptics remain available if an audio route cannot be configured.
+        }
     }
 }
 
