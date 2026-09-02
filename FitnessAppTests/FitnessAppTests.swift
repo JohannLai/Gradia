@@ -373,8 +373,28 @@ struct FitnessAppTests {
         ))
 
         #expect(output.size == WorkoutShareRenderer.outputSize)
+        #expect(WorkoutShareRenderer.outputSize.width * 4 == WorkoutShareRenderer.outputSize.height * 3)
         #expect(output.pngData()?.isEmpty == false)
         #expect(WorkoutShareCopy.title(for: session) == "胸 + 股四头")
         #expect(!WorkoutShareCopy.title(for: session).contains("A 日"))
+    }
+
+    @Test("训练分享文字拖动会按画布比例移动并留在安全范围")
+    func workoutShareOverlayDragging() {
+        let moved = WorkoutShareOverlayPosition.moved(
+            from: CGPoint(x: 0.5, y: 0.5),
+            translation: CGSize(width: 54, height: -144),
+            canvasSize: CGSize(width: 1080, height: 1440)
+        )
+        #expect(abs(moved.x - 0.55) < 0.0001)
+        #expect(abs(moved.y - 0.4) < 0.0001)
+
+        let clamped = WorkoutShareOverlayPosition.moved(
+            from: CGPoint(x: 0.5, y: 0.5),
+            translation: CGSize(width: 9_999, height: -9_999),
+            canvasSize: CGSize(width: 1080, height: 1440)
+        )
+        #expect(clamped.x == WorkoutShareOverlayPosition.horizontalRange.upperBound)
+        #expect(clamped.y == WorkoutShareOverlayPosition.verticalRange.lowerBound)
     }
 }

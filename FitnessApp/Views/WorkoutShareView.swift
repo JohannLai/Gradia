@@ -107,7 +107,10 @@ struct WorkoutShareView: View {
                         session: session,
                         overlayPosition: overlayPosition
                     )
-                    .allowsHitTesting(false)
+
+                    WorkoutShareOverlayDragSurface(
+                        overlayPosition: $overlayPosition
+                    )
                 }
             }
             .aspectRatio(3.0 / 4.0, contentMode: .fit)
@@ -232,6 +235,10 @@ struct WorkoutShareView: View {
 
     private func saveToPhotos() async {
         guard let image = composedImage() else { return }
+        guard let imageData = image.jpegData(compressionQuality: 0.96) else {
+            errorMessage = "合成图片失败，请重试一次。"
+            return
+        }
         isSavingPhoto = true
         defer { isSavingPhoto = false }
 
@@ -242,9 +249,7 @@ struct WorkoutShareView: View {
                 errorMessage = "需要允许添加照片，才能把训练分享图保存到系统相册。"
                 return
             }
-            try await PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
-            }
+            try await WorkoutSharePhotoSaver.save(imageData)
             didSavePhoto = true
             UINotificationFeedbackGenerator().notificationOccurred(.success)
         } catch {
@@ -277,8 +282,6 @@ private struct WorkoutSharePreview: View {
     let session: WorkoutSession
     @Binding var overlayPosition: CGPoint
 
-    @State private var dragOrigin: CGPoint?
-
     var body: some View {
         GeometryReader { geometry in
             WorkoutShareArtwork(
@@ -287,6 +290,21 @@ private struct WorkoutSharePreview: View {
                 overlayPosition: overlayPosition
             )
 
+            WorkoutShareOverlayDragSurface(
+                overlayPosition: $overlayPosition
+            )
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("训练分享预览，白色训练数据可拖动调整位置")
+    }
+}
+
+private struct WorkoutShareOverlayDragSurface: View {
+    @Binding var overlayPosition: CGPoint
+    @State private var dragOrigin: CGPoint?
+
+    var body: some View {
+        GeometryReader { geometry in
             Color.white.opacity(0.001)
                 .frame(width: min(geometry.size.width * 0.72, 280), height: 250)
                 .contentShape(Rectangle())
@@ -299,20 +317,37 @@ private struct WorkoutSharePreview: View {
                         .onChanged { value in
                             if dragOrigin == nil { dragOrigin = overlayPosition }
                             guard let dragOrigin else { return }
-                            overlayPosition = CGPoint(
-                                x: clamped(dragOrigin.x + value.translation.width / geometry.size.width, 0.25...0.75),
-                                y: clamped(dragOrigin.y + value.translation.height / geometry.size.height, 0.18...0.82)
+                            overlayPosition = WorkoutShareOverlayPosition.moved(
+                                from: dragOrigin,
+                                translation: value.translation,
+                                canvasSize: geometry.size
                             )
                         }
                         .onEnded { _ in dragOrigin = nil }
                 )
-                .accessibilityHidden(true)
+                .accessibilityLabel("训练数据位置")
+                .accessibilityHint("拖动可调整白色训练数据的位置")
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("训练分享预览，白色训练数据可拖动调整位置")
+    }
+}
+
+enum WorkoutShareOverlayPosition {
+    static let horizontalRange: ClosedRange<CGFloat> = 0.25...0.75
+    static let verticalRange: ClosedRange<CGFloat> = 0.18...0.82
+
+    static func moved(
+        from origin: CGPoint,
+        translation: CGSize,
+        canvasSize: CGSize
+    ) -> CGPoint {
+        guard canvasSize.width > 0, canvasSize.height > 0 else { return origin }
+        return CGPoint(
+            x: clamp(origin.x + translation.width / canvasSize.width, to: horizontalRange),
+            y: clamp(origin.y + translation.height / canvasSize.height, to: verticalRange)
+        )
     }
 
-    private func clamped(_ value: CGFloat, _ range: ClosedRange<CGFloat>) -> CGFloat {
+    private static func clamp(_ value: CGFloat, to range: ClosedRange<CGFloat>) -> CGFloat {
         min(max(value, range.lowerBound), range.upperBound)
     }
 }
@@ -437,6 +472,30 @@ enum WorkoutShareCopy {
     static func title(for session: WorkoutSession) -> String {
         session.planDay.focus
     }
+}
+
+enum WorkoutSharePhotoSaver {
+    nonisolated static func save(_ imageData: Data) async throws {
+        let changes: @Sendable () -> Void = {
+            let request = PHAssetCreationRequest.forAsset()
+            request.addResource(with: .photo, data: imageData, options: nil)
+        }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            PHPhotoLibrary.shared().performChanges(changes) { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if success {
+                    continuation.resume(returning: ())
+                } else {
+                    continuation.resume(throwing: WorkoutSharePhotoSaveError.unknown)
+                }
+            }
+        }
+    }
+}
+
+enum WorkoutSharePhotoSaveError: Error {
+    case unknown
 }
 
 @MainActor
