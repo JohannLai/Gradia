@@ -10,6 +10,7 @@ struct WorkoutShareView: View {
 
     @State private var backgroundImage: UIImage?
     @State private var overlayPosition = CGPoint(x: 0.68, y: 0.34)
+    @State private var overlayScale: CGFloat = 1
     @State private var cameraAccess = WorkoutShareCameraAccess.checking
     @State private var cameraReady = false
     @State private var captureRequestID = 0
@@ -41,6 +42,19 @@ struct WorkoutShareView: View {
                         .labelStyle(.iconOnly)
                         .foregroundStyle(.white)
                         .accessibilityLabel("关闭训练分享")
+                }
+                if backgroundImage != nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("重拍", systemImage: "arrow.clockwise") {
+                            cameraReady = false
+                            didSavePhoto = false
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                backgroundImage = nil
+                            }
+                        }
+                        .foregroundStyle(.white)
+                        .accessibilityHint("返回实时取景并重新拍照")
+                    }
                 }
             }
         }
@@ -105,11 +119,13 @@ struct WorkoutShareView: View {
                 if case .authorized = cameraAccess {
                     WorkoutShareOverlay(
                         session: session,
-                        overlayPosition: overlayPosition
+                        overlayPosition: overlayPosition,
+                        overlayScale: overlayScale
                     )
 
                     WorkoutShareOverlayDragSurface(
-                        overlayPosition: $overlayPosition
+                        overlayPosition: $overlayPosition,
+                        overlayScale: $overlayScale
                     )
                 }
             }
@@ -121,6 +137,8 @@ struct WorkoutShareView: View {
             }
             .padding(.horizontal, 8)
             .padding(.top, 6)
+
+            overlayDragHint
 
             Spacer(minLength: 10)
 
@@ -149,7 +167,8 @@ struct WorkoutShareView: View {
             WorkoutSharePreview(
                 image: image,
                 session: session,
-                overlayPosition: $overlayPosition
+                overlayPosition: $overlayPosition,
+                overlayScale: $overlayScale
             )
             .aspectRatio(3.0 / 4.0, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -161,10 +180,7 @@ struct WorkoutShareView: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
 
-            Label("拖动白色训练数据，调整到合适位置", systemImage: "hand.draw")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.white.opacity(0.66))
-                .padding(.top, 12)
+            overlayDragHint
 
             Spacer(minLength: 12)
 
@@ -177,6 +193,12 @@ struct WorkoutShareView: View {
                 }
                 .buttonStyle(WorkoutShareSecondaryButtonStyle())
                 .disabled(isSavingPhoto || didSavePhoto)
+                .task(id: didSavePhoto) {
+                    guard didSavePhoto else { return }
+                    try? await Task.sleep(for: .seconds(2))
+                    guard !Task.isCancelled else { return }
+                    didSavePhoto = false
+                }
 
                 Button(action: exportAndShare) {
                     Label("分享", systemImage: "square.and.arrow.up")
@@ -188,6 +210,13 @@ struct WorkoutShareView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 14)
         }
+    }
+
+    private var overlayDragHint: some View {
+        Label("拖动调整位置，双指缩放训练数据", systemImage: "hand.draw")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.white.opacity(0.66))
+            .padding(.top, 12)
     }
 
     private func prepareCamera() async {
@@ -229,7 +258,8 @@ struct WorkoutShareView: View {
         return WorkoutShareRenderer.render(
             image: backgroundImage,
             session: session,
-            overlayPosition: overlayPosition
+            overlayPosition: overlayPosition,
+            overlayScale: overlayScale
         )
     }
 
@@ -281,17 +311,20 @@ private struct WorkoutSharePreview: View {
     let image: UIImage
     let session: WorkoutSession
     @Binding var overlayPosition: CGPoint
+    @Binding var overlayScale: CGFloat
 
     var body: some View {
         GeometryReader { geometry in
             WorkoutShareArtwork(
                 image: image,
                 session: session,
-                overlayPosition: overlayPosition
+                overlayPosition: overlayPosition,
+                overlayScale: overlayScale
             )
 
             WorkoutShareOverlayDragSurface(
-                overlayPosition: $overlayPosition
+                overlayPosition: $overlayPosition,
+                overlayScale: $overlayScale
             )
         }
         .accessibilityElement(children: .combine)
@@ -301,12 +334,17 @@ private struct WorkoutSharePreview: View {
 
 private struct WorkoutShareOverlayDragSurface: View {
     @Binding var overlayPosition: CGPoint
+    @Binding var overlayScale: CGFloat
     @State private var dragOrigin: CGPoint?
+    @State private var scaleOrigin: CGFloat?
 
     var body: some View {
         GeometryReader { geometry in
             Color.white.opacity(0.001)
-                .frame(width: min(geometry.size.width * 0.72, 280), height: 250)
+                .frame(
+                    width: min(geometry.size.width * 0.72, 280) * overlayScale,
+                    height: 250 * overlayScale
+                )
                 .contentShape(Rectangle())
                 .position(
                     x: geometry.size.width * overlayPosition.x,
@@ -325,9 +363,29 @@ private struct WorkoutShareOverlayDragSurface: View {
                         }
                         .onEnded { _ in dragOrigin = nil }
                 )
+                .simultaneousGesture(
+                    MagnificationGesture()
+                        .onChanged { magnification in
+                            if scaleOrigin == nil { scaleOrigin = overlayScale }
+                            guard let scaleOrigin else { return }
+                            overlayScale = WorkoutShareOverlayScale.scaled(
+                                from: scaleOrigin,
+                                magnification: magnification
+                            )
+                        }
+                        .onEnded { _ in scaleOrigin = nil }
+                )
                 .accessibilityLabel("训练数据位置")
-                .accessibilityHint("拖动可调整白色训练数据的位置")
+                .accessibilityHint("单指拖动调整位置，双指缩放大小")
         }
+    }
+}
+
+enum WorkoutShareOverlayScale {
+    static let allowedRange: ClosedRange<CGFloat> = 0.65...1.4
+
+    static func scaled(from origin: CGFloat, magnification: CGFloat) -> CGFloat {
+        min(max(origin * magnification, allowedRange.lowerBound), allowedRange.upperBound)
     }
 }
 
@@ -356,6 +414,7 @@ private struct WorkoutShareArtwork: View {
     let image: UIImage
     let session: WorkoutSession
     let overlayPosition: CGPoint
+    let overlayScale: CGFloat
 
     var body: some View {
         GeometryReader { geometry in
@@ -368,7 +427,8 @@ private struct WorkoutShareArtwork: View {
 
                 WorkoutShareOverlay(
                     session: session,
-                    overlayPosition: overlayPosition
+                    overlayPosition: overlayPosition,
+                    overlayScale: overlayScale
                 )
             }
         }
@@ -380,6 +440,7 @@ private struct WorkoutShareArtwork: View {
 private struct WorkoutShareOverlay: View {
     let session: WorkoutSession
     let overlayPosition: CGPoint
+    let overlayScale: CGFloat
 
     var body: some View {
         GeometryReader { geometry in
@@ -400,6 +461,7 @@ private struct WorkoutShareOverlay: View {
                     scale: geometry.size.width / WorkoutShareRenderer.previewBaselineWidth
                 )
                 .frame(width: geometry.size.width * 0.64)
+                .scaleEffect(overlayScale)
                 .position(
                     x: geometry.size.width * overlayPosition.x,
                     y: geometry.size.height * overlayPosition.y
@@ -506,12 +568,14 @@ enum WorkoutShareRenderer {
     static func render(
         image: UIImage,
         session: WorkoutSession,
-        overlayPosition: CGPoint
+        overlayPosition: CGPoint,
+        overlayScale: CGFloat
     ) -> UIImage? {
         let artwork = WorkoutShareArtwork(
             image: image,
             session: session,
-            overlayPosition: overlayPosition
+            overlayPosition: overlayPosition,
+            overlayScale: overlayScale
         )
         .frame(width: outputSize.width, height: outputSize.height)
 

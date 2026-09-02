@@ -369,7 +369,8 @@ struct FitnessAppTests {
         let output = try #require(WorkoutShareRenderer.render(
             image: background,
             session: session,
-            overlayPosition: CGPoint(x: 0.68, y: 0.34)
+            overlayPosition: CGPoint(x: 0.68, y: 0.34),
+            overlayScale: 1
         ))
 
         #expect(output.size == WorkoutShareRenderer.outputSize)
@@ -396,5 +397,18 @@ struct FitnessAppTests {
         )
         #expect(clamped.x == WorkoutShareOverlayPosition.horizontalRange.upperBound)
         #expect(clamped.y == WorkoutShareOverlayPosition.verticalRange.lowerBound)
+    }
+
+    @Test("训练分享文字双指缩放会限制在可读范围")
+    func workoutShareOverlayScaling() {
+        #expect(WorkoutShareOverlayScale.scaled(from: 1, magnification: 1.2) == 1.2)
+        #expect(
+            WorkoutShareOverlayScale.scaled(from: 1, magnification: 10)
+                == WorkoutShareOverlayScale.allowedRange.upperBound
+        )
+        #expect(
+            WorkoutShareOverlayScale.scaled(from: 1, magnification: 0.01)
+                == WorkoutShareOverlayScale.allowedRange.lowerBound
+        )
     }
 }
