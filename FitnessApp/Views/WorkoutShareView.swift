@@ -1,5 +1,5 @@
 import AVFoundation
-import PhotosUI
+import Photos
 import SwiftUI
 import UIKit
 
@@ -9,12 +9,14 @@ struct WorkoutShareView: View {
     let session: WorkoutSession
 
     @State private var backgroundImage: UIImage?
-    @State private var pickerItem: PhotosPickerItem?
     @State private var overlayPosition = CGPoint(x: 0.68, y: 0.34)
-    @State private var showingCamera = false
+    @State private var cameraAccess = WorkoutShareCameraAccess.checking
+    @State private var cameraReady = false
+    @State private var captureRequestID = 0
     @State private var showingShareSheet = false
     @State private var exportedImage: UIImage?
-    @State private var isLoadingPhoto = false
+    @State private var isSavingPhoto = false
+    @State private var didSavePhoto = false
     @State private var errorMessage: String?
     @State private var offerSettings = false
 
@@ -26,7 +28,7 @@ struct WorkoutShareView: View {
                 if let backgroundImage {
                     editor(for: backgroundImage)
                 } else {
-                    sourceChooser
+                    liveCamera
                 }
             }
             .navigationTitle("训练分享")
@@ -43,25 +45,13 @@ struct WorkoutShareView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .fullScreenCover(isPresented: $showingCamera) {
-            WorkoutShareCameraPicker { image in
-                backgroundImage = image
-                showingCamera = false
-            } onCancel: {
-                showingCamera = false
-            }
-            .ignoresSafeArea()
-        }
         .sheet(isPresented: $showingShareSheet, onDismiss: { exportedImage = nil }) {
             if let exportedImage {
                 WorkoutActivityView(items: [exportedImage])
                     .ignoresSafeArea()
             }
         }
-        .onChange(of: pickerItem) { _, item in
-            guard let item else { return }
-            Task { await loadPhoto(item) }
-        }
+        .task { await prepareCamera() }
         .alert("无法继续", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -75,65 +65,79 @@ struct WorkoutShareView: View {
         }
     }
 
-    private var sourceChooser: some View {
+    private var liveCamera: some View {
         VStack(spacing: 0) {
-            Spacer()
-
             ZStack {
-                RoundedRectangle(cornerRadius: 34, style: .continuous)
-                    .fill(Color.white.opacity(0.07))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 34, style: .continuous)
-                            .stroke(Color.white.opacity(0.14), lineWidth: 1)
-                    }
-
-                VStack(spacing: 18) {
-                    Image(systemName: "camera.aperture")
-                        .font(.system(size: 52, weight: .light))
+                switch cameraAccess {
+                case .authorized:
+                    WorkoutShareLiveCamera(
+                        captureRequestID: captureRequestID,
+                        onReady: { cameraReady = $0 },
+                        onImage: { image in
+                            backgroundImage = image
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        },
+                        onError: showCameraError
+                    )
+                case .checking:
+                    ProgressView("正在准备相机…")
+                        .tint(.white)
                         .foregroundStyle(.white)
-
-                    VStack(spacing: 8) {
-                        Text("拍下训练后的这一刻")
-                            .font(.title2.bold())
-                        Text("训练数据会以白字叠在照片上\n拍完后可以自由拖动位置")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.62))
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(3)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.white.opacity(0.06))
+                case .unavailable:
+                    VStack(spacing: 16) {
+                        Image(systemName: "camera.slash")
+                            .font(.system(size: 42, weight: .light))
+                        Text("相机当前不可用")
+                            .font(.headline)
+                        if offerSettings {
+                            Button("打开设置", action: openSettings)
+                                .buttonStyle(.bordered)
+                                .tint(.white)
+                        }
                     }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.white.opacity(0.06))
                 }
-                .foregroundStyle(.white)
-                .padding(32)
+
+                if case .authorized = cameraAccess {
+                    WorkoutShareOverlay(
+                        session: session,
+                        overlayPosition: overlayPosition
+                    )
+                    .allowsHitTesting(false)
+                }
             }
             .aspectRatio(3.0 / 4.0, contentMode: .fit)
-
-            Spacer(minLength: 28)
-
-            VStack(spacing: 12) {
-                Button(action: openCamera) {
-                    Label("拍摄背景", systemImage: "camera.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(WorkoutSharePrimaryButtonStyle())
-
-                PhotosPicker(selection: $pickerItem, matching: .images) {
-                    Label("从相册选择", systemImage: "photo.on.rectangle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(WorkoutShareSecondaryButtonStyle())
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(Color.white.opacity(0.16), lineWidth: 1)
             }
-        }
-        .padding(.horizontal, 22)
-        .padding(.bottom, 20)
-        .overlay {
-            if isLoadingPhoto {
-                ProgressView("正在载入照片…")
-                    .tint(.white)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
-                    .background(.ultraThinMaterial, in: Capsule())
+            .padding(.horizontal, 8)
+            .padding(.top, 6)
+
+            Spacer(minLength: 10)
+
+            Button {
+                captureRequestID += 1
+            } label: {
+                ZStack {
+                    Circle()
+                        .stroke(Color.white, lineWidth: 4)
+                        .frame(width: 76, height: 76)
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 62, height: 62)
+                }
             }
+            .buttonStyle(WorkoutShareShutterButtonStyle())
+            .disabled(cameraAccess != .authorized || !cameraReady)
+            .accessibilityLabel("拍照")
+            .accessibilityHint("拍下当前取景并进入训练分享编辑")
+            .padding(.bottom, 18)
         }
     }
 
@@ -162,23 +166,14 @@ struct WorkoutShareView: View {
             Spacer(minLength: 12)
 
             HStack(spacing: 10) {
-                Button(action: openCamera) {
-                    VStack(spacing: 5) {
-                        Image(systemName: "camera.fill")
-                        Text("重拍")
-                    }
+                Button {
+                    Task { await saveToPhotos() }
+                } label: {
+                    Label(didSavePhoto ? "已保存" : "保存到相册", systemImage: didSavePhoto ? "checkmark" : "square.and.arrow.down")
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(WorkoutShareCompactButtonStyle())
-
-                PhotosPicker(selection: $pickerItem, matching: .images) {
-                    VStack(spacing: 5) {
-                        Image(systemName: "photo.on.rectangle")
-                        Text("相册")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(WorkoutShareCompactButtonStyle())
+                .buttonStyle(WorkoutShareSecondaryButtonStyle())
+                .disabled(isSavingPhoto || didSavePhoto)
 
                 Button(action: exportAndShare) {
                     Label("分享", systemImage: "square.and.arrow.up")
@@ -192,62 +187,75 @@ struct WorkoutShareView: View {
         }
     }
 
-    private func openCamera() {
+    private func prepareCamera() async {
+        guard backgroundImage == nil else { return }
         offerSettings = false
-        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            errorMessage = "当前设备没有可用相机，可以从相册选择一张照片。"
+        guard AVCaptureDevice.default(for: .video) != nil else {
+            cameraAccess = .unavailable
             return
         }
 
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            showingCamera = true
+            cameraAccess = .authorized
         case .notDetermined:
-            Task {
-                let granted = await AVCaptureDevice.requestAccess(for: .video)
-                if granted {
-                    showingCamera = true
-                } else {
-                    offerSettings = true
-                    errorMessage = "需要相机权限才能拍摄训练分享背景。"
-                }
+            let granted = await AVCaptureDevice.requestAccess(for: .video)
+            if granted {
+                cameraAccess = .authorized
+            } else {
+                offerSettings = true
+                cameraAccess = .unavailable
             }
         case .denied, .restricted:
             offerSettings = true
-            errorMessage = "相机权限当前不可用。你可以在系统设置中允许 Gradia 使用相机。"
+            cameraAccess = .unavailable
         @unknown default:
-            errorMessage = "暂时无法访问相机，可以从相册选择一张照片。"
+            cameraAccess = .unavailable
         }
     }
 
-    private func loadPhoto(_ item: PhotosPickerItem) async {
-        isLoadingPhoto = true
-        defer {
-            isLoadingPhoto = false
-            pickerItem = nil
-        }
+    private func showCameraError(_ message: String) {
+        offerSettings = false
+        errorMessage = message
+        cameraReady = false
+    }
+
+    @MainActor
+    private func composedImage() -> UIImage? {
+        guard let backgroundImage else { return nil }
+        return WorkoutShareRenderer.render(
+            image: backgroundImage,
+            session: session,
+            overlayPosition: overlayPosition
+        )
+    }
+
+    private func saveToPhotos() async {
+        guard let image = composedImage() else { return }
+        isSavingPhoto = true
+        defer { isSavingPhoto = false }
 
         do {
-            guard let data = try await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data) else {
-                throw WorkoutShareError.unreadablePhoto
+            let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            guard status == .authorized || status == .limited else {
+                offerSettings = true
+                errorMessage = "需要允许添加照片，才能把训练分享图保存到系统相册。"
+                return
             }
-            backgroundImage = image
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest.creationRequestForAsset(from: image)
+            }
+            didSavePhoto = true
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
         } catch {
             offerSettings = false
-            errorMessage = "这张照片无法读取，请换一张再试。"
+            errorMessage = "保存到相册失败，请稍后再试。"
         }
     }
 
     @MainActor
     private func exportAndShare() {
-        guard let backgroundImage else { return }
-
-        guard let image = WorkoutShareRenderer.render(
-            image: backgroundImage,
-            session: session,
-            overlayPosition: overlayPosition
-        ) else {
+        guard let image = composedImage() else {
             offerSettings = false
             errorMessage = "合成图片失败，请重试一次。"
             return
@@ -323,6 +331,24 @@ private struct WorkoutShareArtwork: View {
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
 
+                WorkoutShareOverlay(
+                    session: session,
+                    overlayPosition: overlayPosition
+                )
+            }
+        }
+        .background(Color.black)
+        .clipped()
+    }
+}
+
+private struct WorkoutShareOverlay: View {
+    let session: WorkoutSession
+    let overlayPosition: CGPoint
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
                 LinearGradient(
                     colors: [
                         .black.opacity(0.24),
@@ -338,11 +364,11 @@ private struct WorkoutShareArtwork: View {
                     session: session,
                     scale: geometry.size.width / WorkoutShareRenderer.previewBaselineWidth
                 )
-                    .frame(width: geometry.size.width * 0.64)
-                    .position(
-                        x: geometry.size.width * overlayPosition.x,
-                        y: geometry.size.height * overlayPosition.y
-                    )
+                .frame(width: geometry.size.width * 0.64)
+                .position(
+                    x: geometry.size.width * overlayPosition.x,
+                    y: geometry.size.height * overlayPosition.y
+                )
 
                 VStack {
                     Spacer()
@@ -360,8 +386,6 @@ private struct WorkoutShareArtwork: View {
                 }
             }
         }
-        .background(Color.black)
-        .clipped()
     }
 }
 
@@ -439,42 +463,155 @@ enum WorkoutShareRenderer {
     }
 }
 
-private struct WorkoutShareCameraPicker: UIViewControllerRepresentable {
+private enum WorkoutShareCameraAccess {
+    case checking
+    case authorized
+    case unavailable
+}
+
+private struct WorkoutShareLiveCamera: UIViewRepresentable {
+    let captureRequestID: Int
+    let onReady: (Bool) -> Void
     let onImage: (UIImage) -> Void
-    let onCancel: () -> Void
+    let onError: (String) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.cameraCaptureMode = .photo
-        picker.delegate = context.coordinator
-        return picker
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onReady: onReady, onImage: onImage, onError: onError)
     }
 
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    func makeUIView(context: Context) -> WorkoutShareCameraPreviewView {
+        let view = WorkoutShareCameraPreviewView()
+        context.coordinator.attach(to: view)
+        return view
+    }
 
-    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
-        let parent: WorkoutShareCameraPicker
+    func updateUIView(_ uiView: WorkoutShareCameraPreviewView, context: Context) {
+        context.coordinator.captureIfRequested(captureRequestID)
+    }
 
-        init(parent: WorkoutShareCameraPicker) {
-            self.parent = parent
+    static func dismantleUIView(_ uiView: WorkoutShareCameraPreviewView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    final class Coordinator: NSObject, AVCapturePhotoCaptureDelegate, @unchecked Sendable {
+        private let session = AVCaptureSession()
+        private let photoOutput = AVCapturePhotoOutput()
+        private let sessionQueue = DispatchQueue(label: "com.lizhihang.gradia.share-camera")
+        private let onReady: (Bool) -> Void
+        private let onImage: (UIImage) -> Void
+        private let onError: (String) -> Void
+        private var isConfigured = false
+        private var lastCaptureRequestID = 0
+
+        init(
+            onReady: @escaping (Bool) -> Void,
+            onImage: @escaping (UIImage) -> Void,
+            onError: @escaping (String) -> Void
+        ) {
+            self.onReady = onReady
+            self.onImage = onImage
+            self.onError = onError
         }
 
-        func imagePickerController(
-            _ picker: UIImagePickerController,
-            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
-        ) {
-            if let image = info[.originalImage] as? UIImage {
-                parent.onImage(image)
-            } else {
-                parent.onCancel()
+        @MainActor
+        func attach(to view: WorkoutShareCameraPreviewView) {
+            view.previewLayer.session = session
+            sessionQueue.async { [weak self] in self?.configureAndStart() }
+        }
+
+        func captureIfRequested(_ requestID: Int) {
+            guard requestID > lastCaptureRequestID else { return }
+            lastCaptureRequestID = requestID
+            sessionQueue.async { [weak self] in self?.capturePhoto() }
+        }
+
+        func stop() {
+            sessionQueue.async { [weak self] in
+                guard let self, self.session.isRunning else { return }
+                self.session.stopRunning()
             }
         }
 
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.onCancel()
+        private func configureAndStart() {
+            guard !isConfigured else { return }
+            guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+                reportError("当前设备没有可用的后置相机。")
+                return
+            }
+
+            do {
+                let input = try AVCaptureDeviceInput(device: camera)
+                session.beginConfiguration()
+                session.sessionPreset = .photo
+                guard session.canAddInput(input), session.canAddOutput(photoOutput) else {
+                    session.commitConfiguration()
+                    reportError("相机暂时无法启动，请稍后重试。")
+                    return
+                }
+                session.addInput(input)
+                session.addOutput(photoOutput)
+                session.commitConfiguration()
+                isConfigured = true
+                session.startRunning()
+                DispatchQueue.main.async { [onReady] in onReady(true) }
+            } catch {
+                reportError("相机暂时无法启动，请稍后重试。")
+            }
+        }
+
+        private func capturePhoto() {
+            guard isConfigured, session.isRunning else { return }
+            let settings = AVCapturePhotoSettings()
+            settings.photoQualityPrioritization = .balanced
+            if let connection = photoOutput.connection(with: .video),
+               connection.isVideoRotationAngleSupported(90) {
+                connection.videoRotationAngle = 90
+            }
+            photoOutput.capturePhoto(with: settings, delegate: self)
+        }
+
+        func photoOutput(
+            _ output: AVCapturePhotoOutput,
+            didFinishProcessingPhoto photo: AVCapturePhoto,
+            error: Error?
+        ) {
+            guard error == nil,
+                  let data = photo.fileDataRepresentation(),
+                  let image = UIImage(data: data) else {
+                reportError("照片拍摄失败，请重试一次。")
+                return
+            }
+            DispatchQueue.main.async { [onImage] in onImage(image) }
+        }
+
+        private func reportError(_ message: String) {
+            DispatchQueue.main.async { [onError] in onError(message) }
+        }
+    }
+}
+
+private final class WorkoutShareCameraPreviewView: UIView {
+    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+
+    var previewLayer: AVCaptureVideoPreviewLayer {
+        layer as! AVCaptureVideoPreviewLayer
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        previewLayer.videoGravity = .resizeAspectFill
+        backgroundColor = .black
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if let connection = previewLayer.connection,
+           connection.isVideoRotationAngleSupported(90) {
+            connection.videoRotationAngle = 90
         }
     }
 }
@@ -514,18 +651,11 @@ private struct WorkoutShareSecondaryButtonStyle: ButtonStyle {
     }
 }
 
-private struct WorkoutShareCompactButtonStyle: ButtonStyle {
+private struct WorkoutShareShutterButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .frame(minHeight: 54)
-            .background(Color.white.opacity(configuration.isPressed ? 0.14 : 0.08), in: Capsule())
-            .overlay { Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1) }
+            .scaleEffect(configuration.isPressed ? 0.9 : 1)
+            .opacity(configuration.isPressed ? 0.78 : 1)
+            .animation(.spring(duration: 0.22, bounce: 0.3), value: configuration.isPressed)
     }
-}
-
-private enum WorkoutShareError: Error {
-    case unreadablePhoto
 }

@@ -207,6 +207,8 @@ private struct SessionDetailView: View {
                         MetricPill(icon: "clock.fill", value: "\(session.durationMinutes) 分", label: "时长")
                         MetricPill(icon: "square.stack.3d.up.fill", value: "\(session.completedSetCount)", label: "工作组")
                     }
+                    symptomRow
+                    exerciseList
                     Button {
                         showingShareComposer = true
                     } label: {
@@ -216,9 +218,7 @@ private struct SessionDetailView: View {
                     .buttonStyle(.borderedProminent)
                     .foregroundStyle(AppTheme.onAccent)
                     .controlSize(.large)
-                    .accessibilityHint("拍摄或选择照片并合成这次训练的数据")
-                    symptomRow
-                    exerciseList
+                    .accessibilityHint("拍照并合成这次训练的数据")
                 }
                 .padding()
             }
