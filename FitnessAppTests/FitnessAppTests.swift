@@ -29,6 +29,23 @@ struct FitnessAppTests {
         #expect(Set(ExerciseGuideCatalog.all.map(\.planItemID)).count == 19)
     }
 
+    @Test("C 日小腿动作使用无需专用器械的单腿哑铃版本")
+    func cDayCalfRaiseReplacement() throws {
+        let item = try #require(SeedData.plan.first { $0.id == "C-04" })
+        let guide = try #require(ExerciseGuideCatalog.guide(for: "C-04"))
+        let configuration = try #require(SeedData.configurations["C-04"])
+
+        #expect(item.name == "坐姿单腿哑铃提踵")
+        #expect(item.equipment.contains("哑铃"))
+        #expect(item.repMin == 12)
+        #expect(item.repMax == 20)
+        #expect(guide.datasetID == "0400")
+        #expect(guide.englishName == "dumbbell seated one leg calf raise")
+        #expect(configuration.primaryMuscles == [.calves])
+        #expect(configuration.increment == 2.5)
+        #expect(!configuration.machineIncrement)
+    }
+
     @Test("旧 Sheet 仅在九列标题匹配时解析")
     func legacyParser() {
         let rows = [

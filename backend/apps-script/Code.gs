@@ -203,7 +203,7 @@ function seedExerciseConfig_(ss) {
     ['C-01','quads','glutes',false,5,true,false,true,true,1,''],
     ['C-02','lats','upperBack,biceps',false,5,true,false,false,false,2,''],
     ['C-03','chest','frontDelts,triceps',false,5,true,true,false,false,3,''],
-    ['C-04','calves','',false,5,true,false,false,false,'',''],
+    ['C-04','calves','',false,2.5,false,false,false,false,'',''],
     ['C-05','biceps','forearms',false,5,true,false,false,false,'',''],
     ['C-06','triceps','frontDelts',false,5,true,true,false,false,'',''],
     ['C-07','abs','',false,'',false,false,false,false,'','']

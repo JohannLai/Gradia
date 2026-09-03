@@ -29,7 +29,7 @@ enum SeedData {
         strength(.c, 1, "哈克深蹲", "Hack Squat 哈克深蹲机", 3, 8, 12, 2, 2, 120...180, "第一周保守找重量；约10次后还能再做2次。若恶心明显上升，延长休息，必要时3组降为2组。"),
         strength(.c, 2, "辅助引体向上", "辅助引体向上机", 3, 6, 10, 1, 2, 120...120, "先选择能稳定完成6–10次的辅助重量；逐步减少辅助重量。"),
         strength(.c, 3, "平板器械推胸", "固定式平板推胸机", 3, 8, 12, 2, 2, 90...120, "选左肩最舒服的握法/活动范围；疼痛≥3/10或逐组加重则停止并换无痛推胸角度。"),
-        strength(.c, 4, "坐姿提踵", "坐姿提踵机", 3, 10, 15, 1, 2, 60...90, "底部停顿感受拉伸，顶部主动收缩，避免弹震借力。"),
+        strength(.c, 4, "坐姿单腿哑铃提踵", "训练凳、哑铃、杠铃片/踏板", 3, 12, 20, 1, 2, 60...90, "每侧完成；前脚掌垫高，膝盖约90°，哑铃放在同侧大腿靠近膝盖处。底部停1–2秒，顶部收缩1秒，不弹震；三组均达到20次且RIR≥2后增加最小哑铃档位。"),
         strength(.c, 5, "牧师凳弯举 / 器械弯举", "牧师凳弯举机 / 二头弯举机", 2, 10, 15, 1, 2, 60...90, "固定器械优先；达到次数上限且仍有余力后再加重量。"),
         strength(.c, 6, "绳索过头三头伸展", "龙门架 + 绳索把手", 2, 10, 15, 1, 2, 60...90, "上臂稳定；肩部位置不舒服时改回无痛绳索下压。"),
         strength(.c, 7, "反向卷腹 / 悬垂屈膝", "训练垫 / 单杠或悬垂举腿架", 2, 10, 15, 1, 2, 60...60, "重点让骨盆向胸廓方向卷起，不只是抬腿。"),
@@ -53,7 +53,7 @@ enum SeedData {
             config("C-01", [.quads], [.glutes], 5, true, false, true, true, 1),
             config("C-02", [.lats], [.upperBack, .biceps], 5, true, false, false, false, 2),
             config("C-03", [.chest], [.frontDelts, .triceps], 5, true, true, false, false, 3),
-            config("C-04", [.calves], [], 5, true, false, false, false, nil),
+            config("C-04", [.calves], [], 2.5, false, false, false, false, nil),
             config("C-05", [.biceps], [.forearms], 5, true, false, false, false, nil),
             config("C-06", [.triceps], [.frontDelts], 5, true, true, false, false, nil),
             config("C-07", [.abs], [], nil, false, false, false, false, nil)
@@ -161,4 +161,3 @@ enum LegacyPlanParser {
         }
     }
 }
-
