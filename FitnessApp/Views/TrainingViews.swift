@@ -1,6 +1,6 @@
-import AVFoundation
 import SwiftUI
 import UIKit
+import UserNotifications
 
 struct TrainingHomeView: View {
     @EnvironmentObject private var store: AppStore
@@ -117,6 +117,7 @@ struct ActiveWorkoutView: View {
     let onWorkoutCompleted: (WorkoutSession) -> Void
     @State private var restUntil: Date?
     @State private var showAbandon = false
+    @State private var showNotificationSettings = false
 
     var body: some View {
         ScrollView {
@@ -130,7 +131,14 @@ struct ActiveWorkoutView: View {
                         configuration: store.exerciseConfigurations[exercise.item.id]
                     ) { restSeconds in
                         let duration = RestTimerTiming.effectiveDuration(restSeconds)
-                        restUntil = Date.now.addingTimeInterval(TimeInterval(duration))
+                        let until = Date.now.addingTimeInterval(TimeInterval(duration))
+                        restUntil = until
+                        Task {
+                            let result = await RestTimerNotificationScheduler.shared.schedule(until: until)
+                            if result == .denied {
+                                showNotificationSettings = true
+                            }
+                        }
                     } onAddSet: {
                         draft.addSet(to: exercise.id)
                         store.persistActiveDraft()
@@ -148,7 +156,14 @@ struct ActiveWorkoutView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .safeAreaInset(edge: .bottom) {
             if let restUntil {
-                RestTimerBar(until: restUntil) { self.restUntil = nil }
+                RestTimerBar(
+                    until: restUntil,
+                    skip: {
+                        RestTimerNotificationScheduler.shared.cancel()
+                        self.restUntil = nil
+                    },
+                    finished: { self.restUntil = nil }
+                )
                     .padding(.horizontal)
                     .padding(.bottom, 4)
             }
@@ -165,10 +180,20 @@ struct ActiveWorkoutView: View {
         .sheet(isPresented: $showAbandon) {
             AbandonWorkoutSheet {
                 showAbandon = false
+                RestTimerNotificationScheduler.shared.cancel()
                 store.abandonWorkout()
             }
             .presentationDetents([.height(250)])
             .presentationDragIndicator(.visible)
+        }
+        .alert("开启休息到时提醒", isPresented: $showNotificationSettings) {
+            Button("打开设置") {
+                guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
+                UIApplication.shared.open(url)
+            }
+            Button("稍后", role: .cancel) {}
+        } message: {
+            Text("允许 Gradia 发送带声音的通知后，切到后台也能听到休息结束提示。")
         }
         .task(id: draft.id) {
             while !Task.isCancelled {
@@ -233,6 +258,7 @@ struct ActiveWorkoutView: View {
     private var finishButton: some View {
         Button {
             guard let session = store.completeWorkout() else { return }
+            RestTimerNotificationScheduler.shared.cancel()
             onWorkoutCompleted(session)
             Task {
                 if let workoutID = try? await healthKit.saveWorkout(session) {
@@ -503,7 +529,8 @@ private struct SymptomSlider: View {
 
 private struct RestTimerBar: View {
     let until: Date
-    let cancel: () -> Void
+    let skip: () -> Void
+    let finished: () -> Void
     @State private var remaining = 0
     @State private var lastFeedbackSecond: Int?
 
@@ -516,7 +543,7 @@ private struct RestTimerBar: View {
                     .font(.title3.bold().monospacedDigit())
             }
             Spacer()
-            Button("跳过", action: cancel)
+            Button("跳过", action: skip)
                 .font(.subheadline.weight(.semibold))
         }
         .padding(.horizontal, 18)
@@ -537,7 +564,7 @@ private struct RestTimerBar: View {
 
                 if nextRemaining == 0 {
                     RestTimerFeedback.shared.finished()
-                    cancel()
+                    finished()
                     return
                 }
 
@@ -562,6 +589,10 @@ enum RestTimerTiming {
         #endif
         return duration
     }
+
+    static func notificationInterval(until: Date, now: Date) -> TimeInterval {
+        max(1, until.timeIntervalSince(now))
+    }
 }
 
 @MainActor
@@ -570,19 +601,12 @@ private final class RestTimerFeedback {
 
     private let tickGenerator = UIImpactFeedbackGenerator(style: .light)
     private let completionGenerator = UINotificationFeedbackGenerator()
-    private var completionPlayer: AVAudioPlayer?
 
     private init() {}
 
     func prepare() {
-        RestTimerAudioPolicy.configure()
         tickGenerator.prepare()
         completionGenerator.prepare()
-        if completionPlayer == nil {
-            completionPlayer = try? AVAudioPlayer(data: RestTimerCompletionSound.data())
-            completionPlayer?.volume = 0.72
-            completionPlayer?.prepareToPlay()
-        }
     }
 
     func tick() {
@@ -593,30 +617,113 @@ private final class RestTimerFeedback {
     func finished() {
         completionGenerator.notificationOccurred(.success)
         completionGenerator.prepare()
-        completionPlayer?.currentTime = 0
-        completionPlayer?.play()
     }
 }
 
-enum RestTimerAudioPolicy {
-    static let category: AVAudioSession.Category = .ambient
-    static let options: AVAudioSession.CategoryOptions = [.mixWithOthers]
+enum RestTimerNotificationAuthorizationResult {
+    case scheduled
+    case denied
+    case failed
+}
 
-    @MainActor
-    static func configure() {
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(category, mode: .default, options: options)
-        } catch {
-            // Haptics remain available if an audio route cannot be configured.
+@MainActor
+final class RestTimerNotificationScheduler: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = RestTimerNotificationScheduler()
+    static let identifier = "com.lizhihang.gradia.rest-timer"
+
+    private let center = UNUserNotificationCenter.current()
+    private var generation = UUID()
+
+    private override init() {
+        super.init()
+        center.delegate = self
+    }
+
+    func schedule(until: Date) async -> RestTimerNotificationAuthorizationResult {
+        cancel()
+        let requestGeneration = UUID()
+        generation = requestGeneration
+
+        let settings = await center.notificationSettings()
+        let authorized: Bool
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            authorized = true
+        case .notDetermined:
+            authorized = (try? await center.requestAuthorization(options: [.alert, .sound])) == true
+        case .denied:
+            authorized = false
+        @unknown default:
+            authorized = false
         }
+
+        guard authorized else { return .denied }
+        guard generation == requestGeneration else { return .failed }
+
+        let content = RestTimerNotificationPolicy.content()
+        content.sound = RestTimerCompletionSound.installNotificationSound()
+        let interval = RestTimerTiming.notificationInterval(until: until, now: .now)
+        let request = UNNotificationRequest(
+            identifier: Self.identifier,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+        )
+
+        do {
+            try await center.add(request)
+            return .scheduled
+        } catch {
+            return .failed
+        }
+    }
+
+    func cancel() {
+        generation = UUID()
+        center.removePendingNotificationRequests(withIdentifiers: [Self.identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [Self.identifier])
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.sound]
+    }
+}
+
+enum RestTimerNotificationPolicy {
+    static func content() -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = "休息结束"
+        content.body = "开始下一组"
+        content.interruptionLevel = .timeSensitive
+        content.threadIdentifier = "gradia-workout"
+        return content
     }
 }
 
 enum RestTimerCompletionSound {
+    static let fileName = "GradiaRest.wav"
+
+    static func installNotificationSound() -> UNNotificationSound {
+        let fileManager = FileManager.default
+        guard let library = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first else {
+            return .default
+        }
+        let soundsDirectory = library.appendingPathComponent("Sounds", isDirectory: true)
+        let soundURL = soundsDirectory.appendingPathComponent(fileName)
+        do {
+            try fileManager.createDirectory(at: soundsDirectory, withIntermediateDirectories: true)
+            try data().write(to: soundURL, options: .atomic)
+            return UNNotificationSound(named: UNNotificationSoundName(rawValue: fileName))
+        } catch {
+            return .default
+        }
+    }
+
     static func data() -> Data {
         let sampleRate: UInt32 = 44_100
-        let duration = 0.28
+        let duration = 0.72
         let sampleCount = Int(Double(sampleRate) * duration)
         let bytesPerSample: UInt16 = 2
         let dataSize = UInt32(sampleCount) * UInt32(bytesPerSample)
@@ -643,10 +750,13 @@ enum RestTimerCompletionSound {
 
         for index in 0..<sampleCount {
             let time = Double(index) / Double(sampleRate)
-            let envelope = exp(-time * 15)
-            let tone = sin(2 * Double.pi * 1_760 * time) * 0.68
-                + sin(2 * Double.pi * 2_640 * time) * 0.32
-            let sample = Int16(max(-1, min(1, tone * envelope * 0.58)) * Double(Int16.max))
+            let first = exp(-time * 10) * (time < 0.32 ? 1 : 0)
+            let secondTime = max(0, time - 0.34)
+            let second = exp(-secondTime * 9) * (time >= 0.34 ? 1 : 0)
+            let envelope = first + second * 0.92
+            let tone = sin(2 * Double.pi * 1_568 * time) * 0.7
+                + sin(2 * Double.pi * 2_352 * time) * 0.3
+            let sample = Int16(max(-1, min(1, tone * envelope * 0.9)) * Double(Int16.max))
             appendLE(sample)
         }
 

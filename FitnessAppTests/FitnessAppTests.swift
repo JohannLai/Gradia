@@ -4,6 +4,7 @@ import MuscleMap
 import SwiftData
 import Testing
 import UIKit
+import UserNotifications
 @testable import FitnessApp
 
 struct FitnessAppTests {
@@ -305,6 +306,8 @@ struct FitnessAppTests {
         #expect(RestTimerTiming.shouldTick(remaining: 1, lastTicked: 2))
         #expect(!RestTimerTiming.shouldTick(remaining: 0, lastTicked: 1))
         #expect(!RestTimerTiming.shouldTick(remaining: 11, lastTicked: nil))
+        #expect(RestTimerTiming.notificationInterval(until: now.addingTimeInterval(90), now: now) == 90)
+        #expect(RestTimerTiming.notificationInterval(until: now.addingTimeInterval(-1), now: now) == 1)
     }
 
     @Test("组间倒计时结束钟声是可播放的短音频")
@@ -312,14 +315,24 @@ struct FitnessAppTests {
         let data = RestTimerCompletionSound.data()
         #expect(String(data: data.prefix(4), encoding: .ascii) == "RIFF")
         let player = try AVAudioPlayer(data: data)
-        #expect(player.duration > 0.2)
-        #expect(player.duration < 0.4)
+        #expect(player.duration > 0.65)
+        #expect(player.duration < 0.8)
+
+        _ = RestTimerCompletionSound.installNotificationSound()
+        let library = try #require(FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first)
+        let soundURL = library
+            .appendingPathComponent("Sounds", isDirectory: true)
+            .appendingPathComponent(RestTimerCompletionSound.fileName)
+        #expect(FileManager.default.fileExists(atPath: soundURL.path))
     }
 
-    @Test("倒计时提示音与其他 App 音乐混音")
-    func restTimerDoesNotInterruptMusic() {
-        #expect(RestTimerAudioPolicy.category == .ambient)
-        #expect(RestTimerAudioPolicy.options.contains(.mixWithOthers))
+    @Test("后台倒计时使用系统通知播放醒目的到时声音")
+    func restTimerBackgroundNotification() {
+        let content = RestTimerNotificationPolicy.content()
+        #expect(content.title == "休息结束")
+        #expect(content.body == "开始下一组")
+        #expect(content.interruptionLevel == .timeSensitive)
+        #expect(RestTimerCompletionSound.fileName.hasSuffix(".wav"))
     }
 
     @Test("新增组复制上一组输入但不会提前完成")
