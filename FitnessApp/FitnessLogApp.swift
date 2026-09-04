@@ -9,7 +9,6 @@ struct FitnessLogApp: App {
     @StateObject private var healthKit = HealthKitService()
 
     init() {
-        _ = RestTimerNotificationScheduler.shared
         do {
             let container = try ModelContainer(for: LocalRecord.self, PendingMutation.self)
             modelContainer = container

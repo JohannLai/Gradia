@@ -1,6 +1,6 @@
+import AVFoundation
 import SwiftUI
 import UIKit
-import UserNotifications
 
 struct TrainingHomeView: View {
     @EnvironmentObject private var store: AppStore
@@ -117,7 +117,6 @@ struct ActiveWorkoutView: View {
     let onWorkoutCompleted: (WorkoutSession) -> Void
     @State private var restUntil: Date?
     @State private var showAbandon = false
-    @State private var showNotificationSettings = false
 
     var body: some View {
         ScrollView {
@@ -131,14 +130,7 @@ struct ActiveWorkoutView: View {
                         configuration: store.exerciseConfigurations[exercise.item.id]
                     ) { restSeconds in
                         let duration = RestTimerTiming.effectiveDuration(restSeconds)
-                        let until = Date.now.addingTimeInterval(TimeInterval(duration))
-                        restUntil = until
-                        Task {
-                            let result = await RestTimerNotificationScheduler.shared.schedule(until: until)
-                            if result == .denied {
-                                showNotificationSettings = true
-                            }
-                        }
+                        restUntil = Date.now.addingTimeInterval(TimeInterval(duration))
                     } onAddSet: {
                         draft.addSet(to: exercise.id)
                         store.persistActiveDraft()
@@ -159,10 +151,11 @@ struct ActiveWorkoutView: View {
                 RestTimerBar(
                     until: restUntil,
                     skip: {
-                        RestTimerNotificationScheduler.shared.cancel()
                         self.restUntil = nil
                     },
-                    finished: { self.restUntil = nil }
+                    finished: {
+                        self.restUntil = nil
+                    }
                 )
                     .padding(.horizontal)
                     .padding(.bottom, 4)
@@ -180,20 +173,10 @@ struct ActiveWorkoutView: View {
         .sheet(isPresented: $showAbandon) {
             AbandonWorkoutSheet {
                 showAbandon = false
-                RestTimerNotificationScheduler.shared.cancel()
                 store.abandonWorkout()
             }
             .presentationDetents([.height(250)])
             .presentationDragIndicator(.visible)
-        }
-        .alert("开启休息到时提醒", isPresented: $showNotificationSettings) {
-            Button("打开设置") {
-                guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
-                UIApplication.shared.open(url)
-            }
-            Button("稍后", role: .cancel) {}
-        } message: {
-            Text("允许 Gradia 发送带声音的通知后，切到后台也能听到休息结束提示。")
         }
         .task(id: draft.id) {
             while !Task.isCancelled {
@@ -258,7 +241,6 @@ struct ActiveWorkoutView: View {
     private var finishButton: some View {
         Button {
             guard let session = store.completeWorkout() else { return }
-            RestTimerNotificationScheduler.shared.cancel()
             onWorkoutCompleted(session)
             Task {
                 if let workoutID = try? await healthKit.saveWorkout(session) {
@@ -590,9 +572,6 @@ enum RestTimerTiming {
         return duration
     }
 
-    static func notificationInterval(until: Date, now: Date) -> TimeInterval {
-        max(1, until.timeIntervalSince(now))
-    }
 }
 
 @MainActor
@@ -601,8 +580,15 @@ private final class RestTimerFeedback {
 
     private let tickGenerator = UIImpactFeedbackGenerator(style: .light)
     private let completionGenerator = UINotificationFeedbackGenerator()
+    private var completionPlayer: AVAudioPlayer?
 
-    private init() {}
+    private init() {
+        // Ambient audio mixes with music and podcasts instead of interrupting them.
+        try? AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+        completionPlayer = try? AVAudioPlayer(data: RestTimerCompletionSound.data())
+        completionPlayer?.volume = 1
+        completionPlayer?.prepareToPlay()
+    }
 
     func prepare() {
         tickGenerator.prepare()
@@ -617,110 +603,12 @@ private final class RestTimerFeedback {
     func finished() {
         completionGenerator.notificationOccurred(.success)
         completionGenerator.prepare()
-    }
-}
-
-enum RestTimerNotificationAuthorizationResult {
-    case scheduled
-    case denied
-    case failed
-}
-
-@MainActor
-final class RestTimerNotificationScheduler: NSObject, UNUserNotificationCenterDelegate {
-    static let shared = RestTimerNotificationScheduler()
-    static let identifier = "com.lizhihang.gradia.rest-timer"
-
-    private let center = UNUserNotificationCenter.current()
-    private var generation = UUID()
-
-    private override init() {
-        super.init()
-        center.delegate = self
-    }
-
-    func schedule(until: Date) async -> RestTimerNotificationAuthorizationResult {
-        cancel()
-        let requestGeneration = UUID()
-        generation = requestGeneration
-
-        let settings = await center.notificationSettings()
-        let authorized: Bool
-        switch settings.authorizationStatus {
-        case .authorized, .provisional, .ephemeral:
-            authorized = true
-        case .notDetermined:
-            authorized = (try? await center.requestAuthorization(options: [.alert, .sound])) == true
-        case .denied:
-            authorized = false
-        @unknown default:
-            authorized = false
-        }
-
-        guard authorized else { return .denied }
-        guard generation == requestGeneration else { return .failed }
-
-        let content = RestTimerNotificationPolicy.content()
-        content.sound = RestTimerCompletionSound.installNotificationSound()
-        let interval = RestTimerTiming.notificationInterval(until: until, now: .now)
-        let request = UNNotificationRequest(
-            identifier: Self.identifier,
-            content: content,
-            trigger: UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
-        )
-
-        do {
-            try await center.add(request)
-            return .scheduled
-        } catch {
-            return .failed
-        }
-    }
-
-    func cancel() {
-        generation = UUID()
-        center.removePendingNotificationRequests(withIdentifiers: [Self.identifier])
-        center.removeDeliveredNotifications(withIdentifiers: [Self.identifier])
-    }
-
-    nonisolated func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        [.sound]
-    }
-}
-
-enum RestTimerNotificationPolicy {
-    static func content() -> UNMutableNotificationContent {
-        let content = UNMutableNotificationContent()
-        content.title = "休息结束"
-        content.body = "开始下一组"
-        content.interruptionLevel = .timeSensitive
-        content.threadIdentifier = "gradia-workout"
-        return content
+        completionPlayer?.currentTime = 0
+        completionPlayer?.play()
     }
 }
 
 enum RestTimerCompletionSound {
-    static let fileName = "GradiaRest.wav"
-
-    static func installNotificationSound() -> UNNotificationSound {
-        let fileManager = FileManager.default
-        guard let library = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first else {
-            return .default
-        }
-        let soundsDirectory = library.appendingPathComponent("Sounds", isDirectory: true)
-        let soundURL = soundsDirectory.appendingPathComponent(fileName)
-        do {
-            try fileManager.createDirectory(at: soundsDirectory, withIntermediateDirectories: true)
-            try data().write(to: soundURL, options: .atomic)
-            return UNNotificationSound(named: UNNotificationSoundName(rawValue: fileName))
-        } catch {
-            return .default
-        }
-    }
-
     static func data() -> Data {
         let sampleRate: UInt32 = 44_100
         let duration = 0.72
